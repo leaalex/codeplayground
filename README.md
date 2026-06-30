@@ -11,12 +11,14 @@ docker pull golang:1.21-alpine
 ```
 
 **Frontend:**
+
 ```bash
 npm install
 npm run dev
 ```
 
 **Backend** (in another terminal):
+
 ```bash
 cd backend
 go run main.go
@@ -27,19 +29,22 @@ The frontend proxies `/api` to `http://localhost:3000` in dev mode. The backend 
 ## Docker
 
 **Development** (без SSL, прямой доступ по порту):
+
 ```bash
 docker compose up --build
 ```
 
 Open http://localhost:8081
 
-**Production** (Caddy + SSL для design-x-dev.online):
+**Production** (Caddy + SSL для xionic.ru):
+
 ```bash
 docker compose -f docker-compose.prod.yml up -d --build
 ```
 
 Перед запуском:
-1. Настройте DNS: `design-x-dev.online` → IP сервера
+
+1. Настройте DNS: `xionic.ru` и `www.xionic.ru` → IP сервера
 2. Убедитесь, что порты 80 и 443 открыты
 3. Caddy автоматически получит SSL-сертификат от Let's Encrypt
 4. На сервере должен быть установлен Docker; backend монтирует `/var/run/docker.sock`
@@ -58,6 +63,7 @@ cp .env.example .env
 ```
 
 В `.env`:
+
 - `ADMIN_EMAIL` — email админа
 - `ADMIN_PASSWORD` — пароль админа (создаётся при первом запуске, если пользователя нет)
 - `JWT_SECRET` — секрет для JWT (обязательно сменить в production)

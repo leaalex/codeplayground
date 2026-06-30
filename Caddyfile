@@ -1,6 +1,7 @@
-design-x-dev.ru {
+xionic.ru {
     reverse_proxy frontend:80
 }
-designxdev.ru {
-    reverse_proxy frontend:80
+
+www.xionic.ru {
+    redir https://xionic.ru{uri} permanent
 }
