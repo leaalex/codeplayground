@@ -1,6 +1,9 @@
 package config
 
-import "os"
+import (
+	"os"
+	"time"
+)
 
 func getEnvOrDefault(key, defaultVal string) string {
 	if v := os.Getenv(key); v != "" {
@@ -16,6 +19,8 @@ type Config struct {
 	AdminEmail    string
 	AdminPassword string
 	AdminFullname string
+	GoRunnerImage string
+	RunTimeout    time.Duration
 }
 
 func Load() *Config {
@@ -31,12 +36,22 @@ func Load() *Config {
 	if port == "" {
 		port = "3000"
 	}
+
+	runTimeout := 60 * time.Second
+	if v := os.Getenv("RUN_TIMEOUT"); v != "" {
+		if d, err := time.ParseDuration(v); err == nil && d > 0 {
+			runTimeout = d
+		}
+	}
+
 	return &Config{
-		JWTSecret:    jwtSecret,
-		DBPath:       dbPath,
+		JWTSecret:     jwtSecret,
+		DBPath:        dbPath,
 		Port:          port,
 		AdminEmail:    os.Getenv("ADMIN_EMAIL"),
 		AdminPassword: os.Getenv("ADMIN_PASSWORD"),
 		AdminFullname: getEnvOrDefault("ADMIN_FULLNAME", "Admin"),
+		GoRunnerImage: getEnvOrDefault("GO_RUNNER_IMAGE", "golang:1.21-alpine"),
+		RunTimeout:    runTimeout,
 	}
 }

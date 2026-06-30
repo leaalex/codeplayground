@@ -1,11 +1,13 @@
 package main
 
 import (
-	"jsplayground/backend/internal/config"
-	"jsplayground/backend/internal/handlers"
-	"jsplayground/backend/internal/middleware"
-	"jsplayground/backend/internal/models"
-	"jsplayground/backend/internal/repository"
+	"goplayground/backend/internal/config"
+	"goplayground/backend/internal/handlers"
+	"goplayground/backend/internal/middleware"
+	"goplayground/backend/internal/models"
+	"goplayground/backend/internal/repository"
+	"goplayground/backend/internal/runner"
+	"log"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -44,11 +46,17 @@ func main() {
 		}
 	}
 
+	dockerRunner, err := runner.NewDockerRunner(cfg.GoRunnerImage, cfg.RunTimeout)
+	if err != nil {
+		log.Fatal("failed to create docker runner: ", err)
+	}
+	defer dockerRunner.Close()
+
 	fileRepo := repository.NewFileRepository(db)
 	authHandler := handlers.NewAuthHandler(userRepo, cfg.JWTSecret, cfg.AdminEmail)
 	filesHandler := handlers.NewFilesHandler(fileRepo)
 	usersHandler := handlers.NewUsersHandler(userRepo)
-	runHandler := handlers.NewRunHandler()
+	runHandler := handlers.NewRunHandler(dockerRunner, cfg.RunTimeout)
 
 	r := gin.Default()
 	r.Use(func(c *gin.Context) {

@@ -219,11 +219,11 @@ function formatDate(dateStr) {
 }
 
 function exportFile(file) {
-  const blob = new Blob([file.content || ''], { type: 'application/javascript' })
+  const blob = new Blob([file.content || ''], { type: 'text/x-go' })
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url
-  a.download = file.name || 'file.js'
+  a.download = file.name || 'file.go'
   a.click()
   URL.revokeObjectURL(url)
 }
@@ -269,11 +269,11 @@ function cancelRename() {
 async function saveRename() {
   const id = editingFileId.value
   if (!id) return
-  const name = editingName.value.trim() || 'untitled.js'
+  const name = editingName.value.trim() || 'untitled.go'
   try {
     const updated = await api(`/files/${id}`, {
       method: 'PUT',
-      body: JSON.stringify({ name: name.endsWith('.js') ? name : name + '.js' }),
+      body: JSON.stringify({ name: name.endsWith('.go') ? name : name + '.go' }),
     })
     const f = files.value.find((x) => x.id === id)
     if (f) f.name = updated.name
@@ -294,7 +294,7 @@ async function onImport(e) {
   input.value = ''
   try {
     const content = await file.text()
-    const name = file.name || 'untitled.js'
+    const name = file.name || 'untitled.go'
     const created = await api('/files', {
       method: 'POST',
       body: JSON.stringify({
@@ -339,7 +339,7 @@ onMounted(load)
       <input
         ref="importInputRef"
         type="file"
-        accept=".js,.ts,.mjs"
+        accept=".go"
         class="hidden"
         @change="onImport"
       />

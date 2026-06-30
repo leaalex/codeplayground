@@ -5,7 +5,7 @@ import (
 	"strconv"
 
 	"github.com/gin-gonic/gin"
-	"jsplayground/backend/internal/repository"
+	"goplayground/backend/internal/repository"
 )
 
 type UsersHandler struct {

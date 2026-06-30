@@ -18,6 +18,9 @@ services:
       - ADMIN_PASSWORD=${ADMIN_PASSWORD:-}
       - DB_PATH=/data/playground.db
       - PORT=3000
+      - GO_RUNNER_IMAGE=${GO_RUNNER_IMAGE:-golang:1.21-alpine}
+      - RUN_TIMEOUT=${RUN_TIMEOUT:-60s}
     volumes:
       - ./data:/data
+      - /var/run/docker.sock:/var/run/docker.sock
     restart: unless-stopped

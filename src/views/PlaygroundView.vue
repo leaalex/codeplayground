@@ -21,6 +21,7 @@ const fileUser = ref(null)
 const verified = ref(false)
 const code = ref('// Loading...\n')
 const logs = ref([])
+const running = ref(false)
 const saving = ref(false)
 const loading = ref(true)
 const horizontal = ref(false)
@@ -38,7 +39,7 @@ async function loadFile() {
     const file = await api(`/files/${id}`)
     fileName.value = file.name
     verified.value = file.verified || false
-    code.value = file.content || '// New file\nconsole.log("Hello!")\n'
+    code.value = file.content || 'package main\n\nimport "fmt"\n\nfunc main() {\n\tfmt.Println("Hello!")\n}\n'
     fileUserId.value = file.user_id
     fileUser.value = file.user
   } catch (e) {
@@ -50,6 +51,8 @@ async function loadFile() {
 }
 
 async function runCode(source) {
+  running.value = true
+  logs.value = []
   try {
     const res = await api('/run', {
       method: 'POST',
@@ -63,10 +66,13 @@ async function runCode(source) {
     }
   } catch (e) {
     logs.value = [{ type: 'error', args: e.message }]
+  } finally {
+    running.value = false
   }
 }
 
 function handleRun() {
+  if (running.value) return
   runCode(code.value)
 }
 
@@ -96,8 +102,8 @@ function cancelRename() {
 }
 
 async function saveRename() {
-  const name = renameValue.value.trim() || 'untitled.js'
-  const finalName = name.endsWith('.js') ? name : name + '.js'
+  const name = renameValue.value.trim() || 'untitled.go'
+  const finalName = name.endsWith('.go') ? name : name + '.go'
   if (!route.params.id) return
   try {
     await api(`/files/${route.params.id}`, {
@@ -204,10 +210,11 @@ watch(() => route.params.id, loadFile, { immediate: true })
         {{ saving ? 'Saving...' : 'Save (Ctrl+S)' }}
       </button>
       <button
-        class="rounded bg-blue-600 px-3 py-1 text-xs font-medium text-white hover:bg-blue-700"
+        :disabled="running"
+        class="rounded bg-blue-600 px-3 py-1 text-xs font-medium text-white hover:bg-blue-700 disabled:opacity-50"
         @click="handleRun"
       >
-        Run (Ctrl+Enter)
+        {{ running ? 'Running...' : 'Run (Ctrl+Enter)' }}
       </button>
     </AppHeader>
 
@@ -221,7 +228,7 @@ watch(() => route.params.id, loadFile, { immediate: true })
         <Pane :min-size="10" :size="30">
           <div class="flex h-full flex-col border-t border-slate-200 bg-white">
             <div class="flex-1 min-h-0 overflow-auto">
-              <ConsoleOutput :logs="logs" />
+              <ConsoleOutput :logs="logs" :running="running" />
             </div>
           </div>
         </Pane>

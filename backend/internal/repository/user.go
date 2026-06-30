@@ -1,7 +1,7 @@
 package repository
 
 import (
-	"jsplayground/backend/internal/models"
+	"goplayground/backend/internal/models"
 
 	"gorm.io/gorm"
 )

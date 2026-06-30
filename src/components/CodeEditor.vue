@@ -17,7 +17,7 @@ onMounted(async () => {
   const monaco = await import('monaco-editor')
   editor = monaco.editor.create(editorRef.value, {
     value: props.modelValue,
-    language: 'javascript',
+    language: 'go',
     theme: 'vs',
     automaticLayout: true,
     minimap: { enabled: false },

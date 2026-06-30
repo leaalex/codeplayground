@@ -5,8 +5,8 @@ import (
 	"strconv"
 
 	"github.com/gin-gonic/gin"
-	"jsplayground/backend/internal/models"
-	"jsplayground/backend/internal/repository"
+	"goplayground/backend/internal/models"
+	"goplayground/backend/internal/repository"
 )
 
 type FilesHandler struct {

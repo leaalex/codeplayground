@@ -6,13 +6,16 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"jsplayground/backend/internal/runner"
+	"goplayground/backend/internal/runner"
 )
 
-type RunHandler struct{}
+type RunHandler struct {
+	runner  *runner.DockerRunner
+	timeout time.Duration
+}
 
-func NewRunHandler() *RunHandler {
-	return &RunHandler{}
+func NewRunHandler(r *runner.DockerRunner, timeout time.Duration) *RunHandler {
+	return &RunHandler{runner: r, timeout: timeout}
 }
 
 type RunRequest struct {
@@ -34,9 +37,9 @@ func (h *RunHandler) Run(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "code too large"})
 		return
 	}
-	ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(c.Request.Context(), h.timeout)
 	defer cancel()
-	res := runner.Run(ctx, req.Code)
+	res := h.runner.Run(ctx, req.Code)
 	c.JSON(http.StatusOK, RunResponse{
 		Output: res.Output,
 		Error:  res.Error,

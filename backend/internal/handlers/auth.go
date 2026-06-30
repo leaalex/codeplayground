@@ -7,8 +7,8 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
 	"golang.org/x/crypto/bcrypt"
-	"jsplayground/backend/internal/models"
-	"jsplayground/backend/internal/repository"
+	"goplayground/backend/internal/models"
+	"goplayground/backend/internal/repository"
 )
 
 type AuthHandler struct {

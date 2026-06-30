@@ -10,7 +10,7 @@ const error = ref('')
 const creating = ref(false)
 
 async function create() {
-  const fileName = name.value.trim() || 'untitled.js'
+  const fileName = name.value.trim() || 'untitled.go'
   if (!fileName) {
     error.value = 'Name is required'
     return
@@ -21,9 +21,9 @@ async function create() {
     const file = await api('/files', {
       method: 'POST',
       body: JSON.stringify({
-        name: fileName.endsWith('.js') ? fileName : fileName + '.js',
+        name: fileName.endsWith('.go') ? fileName : fileName + '.go',
         path: path.value.trim(),
-        content: '// New file\nconsole.log("Hello!")\n',
+        content: 'package main\n\nimport "fmt"\n\nfunc main() {\n\tfmt.Println("Hello!")\n}\n',
       }),
     })
     router.push({ name: 'playground', params: { id: file.id } })
@@ -57,7 +57,7 @@ async function create() {
               id="name"
               v-model="name"
               type="text"
-              placeholder="script.js"
+              placeholder="main.go"
               class="w-full rounded border border-slate-300 px-3 py-1.5 text-sm text-slate-800 placeholder-slate-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
             />
           </div>
