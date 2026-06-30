@@ -1,5 +1,6 @@
 <script setup>
 import { useAuth } from '../composables/useAuth'
+import AppLogo from './AppLogo.vue'
 
 const { logout } = useAuth()
 </script>
@@ -9,7 +10,7 @@ const { logout } = useAuth()
     <div class="flex w-full items-center justify-between">
       <div class="flex items-center gap-3">
         <router-link to="/files" class="shrink-0">
-          <img src="/logo.svg" alt="Go Playground" class="h-8 opacity-80" />
+          <AppLogo size="sm" />
         </router-link>
         <slot name="left" />
       </div>

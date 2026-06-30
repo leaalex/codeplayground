@@ -3,6 +3,7 @@ import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuth } from '../composables/useAuth'
 import { api } from '../composables/useApi'
+import AppLogo from '../components/AppLogo.vue'
 
 const router = useRouter()
 const { setToken } = useAuth()
@@ -35,7 +36,7 @@ async function submit() {
 <template>
   <div class="flex min-h-screen items-center justify-center bg-slate-50 p-4">
     <div class="w-full max-w-sm rounded-lg border border-slate-200 bg-white p-6 shadow-lg text-center">
-      <img src="/logo.svg" alt="Go Playground" class="mx-auto h-10 opacity-80" />
+      <AppLogo size="md" centered />
       <p class="mt-0.5 text-xs text-slate-500">Sign in to save your files</p>
 
       <form class="mt-4 flex flex-col gap-3" @submit.prevent="submit">
