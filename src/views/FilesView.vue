@@ -194,6 +194,24 @@ async function batchVerify(verified) {
   selectedFileIds.value = new Set()
 }
 
+async function batchDelete() {
+  const ids = [...selectedFileIds.value]
+  if (!ids.length) return
+  const count = ids.length
+  if (!confirm(`Delete ${count} selected file${count === 1 ? '' : 's'}?`)) return
+  try {
+    await Promise.all(ids.map((id) => api(`/files/${id}`, { method: 'DELETE' })))
+    const idSet = new Set(ids)
+    files.value = files.value.filter((f) => !idSet.has(f.id))
+    if (previewFile.value && idSet.has(previewFile.value.id)) {
+      previewFile.value = null
+    }
+  } catch (e) {
+    alert(e.message)
+  }
+  selectedFileIds.value = new Set()
+}
+
 async function verifyFromPreview() {
   if (!previewFile.value || !isAdmin.value) return
   try {
@@ -435,6 +453,13 @@ onMounted(load)
             @click="batchVerify(false)"
           >
             Unverify selected
+          </button>
+          <button
+            type="button"
+            class="rounded bg-red-600 px-2 py-0.5 text-xs text-white hover:bg-red-700"
+            @click="batchDelete"
+          >
+            Delete selected
           </button>
           <button
             type="button"
