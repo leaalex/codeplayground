@@ -46,7 +46,7 @@ func main() {
 		}
 	}
 
-	dockerRunner, err := runner.NewDockerRunner(cfg.GoRunnerImage, cfg.RunTimeout)
+	dockerRunner, err := runner.NewDockerRunner(cfg.GoRunnerImage, cfg.PythonRunnerImage, cfg.RunTimeout)
 	if err != nil {
 		log.Fatal("failed to create docker runner: ", err)
 	}

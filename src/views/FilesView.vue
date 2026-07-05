@@ -6,6 +6,14 @@ import AppHeader from '../components/AppHeader.vue'
 import AppFooter from '../components/AppFooter.vue'
 import { useAuth } from '../composables/useAuth'
 import { api } from '../composables/useApi'
+import {
+  detectLanguage,
+  defaultFileName,
+  defaultTemplate,
+  preserveExtension,
+  exportMimeType,
+  languageLabel,
+} from '../utils/language'
 
 const router = useRouter()
 const { isAdmin, user } = useAuth()
@@ -219,11 +227,12 @@ function formatDate(dateStr) {
 }
 
 function exportFile(file) {
-  const blob = new Blob([file.content || ''], { type: 'text/x-go' })
+  const lang = detectLanguage(file.name)
+  const blob = new Blob([file.content || ''], { type: exportMimeType(lang) })
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url
-  a.download = file.name || 'file.go'
+  a.download = file.name || defaultFileName(lang)
   a.click()
   URL.revokeObjectURL(url)
 }
@@ -269,11 +278,12 @@ function cancelRename() {
 async function saveRename() {
   const id = editingFileId.value
   if (!id) return
-  const name = editingName.value.trim() || 'untitled.go'
+  const file = files.value.find((x) => x.id === id)
+  const name = preserveExtension(editingName.value, file?.name || defaultFileName('go'))
   try {
     const updated = await api(`/files/${id}`, {
       method: 'PUT',
-      body: JSON.stringify({ name: name.endsWith('.go') ? name : name + '.go' }),
+      body: JSON.stringify({ name }),
     })
     const f = files.value.find((x) => x.id === id)
     if (f) f.name = updated.name
@@ -294,13 +304,13 @@ async function onImport(e) {
   input.value = ''
   try {
     const content = await file.text()
-    const name = file.name || 'untitled.go'
+    const name = file.name || defaultFileName(detectLanguage(file.name))
     const created = await api('/files', {
       method: 'POST',
       body: JSON.stringify({
         name,
         path: '',
-        content: content || '// Imported file\n',
+        content: content || defaultTemplate(detectLanguage(name)),
       }),
     })
     files.value = [created, ...files.value]
@@ -339,7 +349,7 @@ onMounted(load)
       <input
         ref="importInputRef"
         type="file"
-        accept=".go"
+        accept=".go,.py"
         class="hidden"
         @change="onImport"
       />
@@ -546,6 +556,11 @@ onMounted(load)
                         >
                           {{ file.name }}
                         </button>
+                        <span
+                          class="shrink-0 rounded bg-slate-100 px-1 py-0.5 text-[10px] font-medium text-slate-600"
+                        >
+                          {{ languageLabel(detectLanguage(file.name)) }}
+                        </span>
                         <button
                           type="button"
                           class="shrink-0 rounded p-0.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600"

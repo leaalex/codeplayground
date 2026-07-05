@@ -1,10 +1,15 @@
 <script setup>
 import { ref, onMounted, onBeforeUnmount, watch } from 'vue'
+import { monacoLanguage } from '../utils/language'
 
 const props = defineProps({
   modelValue: {
     type: String,
     default: '',
+  },
+  language: {
+    type: String,
+    default: 'go',
   },
 })
 
@@ -12,12 +17,13 @@ const emit = defineEmits(['update:modelValue', 'run', 'save'])
 
 const editorRef = ref(null)
 let editor = null
+let monaco = null
 
 onMounted(async () => {
-  const monaco = await import('monaco-editor')
+  monaco = await import('monaco-editor')
   editor = monaco.editor.create(editorRef.value, {
     value: props.modelValue,
-    language: 'go',
+    language: monacoLanguage(props.language),
     theme: 'vs',
     automaticLayout: true,
     minimap: { enabled: false },
@@ -50,6 +56,15 @@ watch(
   (newVal) => {
     if (editor && editor.getValue() !== newVal) {
       editor.setValue(newVal)
+    }
+  }
+)
+
+watch(
+  () => props.language,
+  (lang) => {
+    if (editor && monaco) {
+      monaco.editor.setModelLanguage(editor.getModel(), monacoLanguage(lang))
     }
   }
 )

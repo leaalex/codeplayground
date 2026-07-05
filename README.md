@@ -1,13 +1,14 @@
 # Go Playground
 
-A Go playground with authentication, file storage, and isolated server-side code execution via Docker.
+A Go and Python playground with authentication, file storage, and isolated server-side code execution via Docker.
 
 ## Setup
 
-**Prerequisites:** Docker must be running (Docker Desktop on macOS/Windows). Pull the runner image once:
+**Prerequisites:** Docker must be running (Docker Desktop on macOS/Windows). Pull the runner images once:
 
 ```bash
 docker pull golang:1.21-alpine
+docker pull python:3.12-alpine
 ```
 
 **Frontend:**
@@ -68,6 +69,7 @@ cp .env.example .env
 - `ADMIN_PASSWORD` — пароль админа (создаётся при первом запуске, если пользователя нет)
 - `JWT_SECRET` — секрет для JWT (обязательно сменить в production)
 - `GO_RUNNER_IMAGE` — Docker-образ для выполнения Go (по умолчанию `golang:1.21-alpine`)
+- `PYTHON_RUNNER_IMAGE` — Docker-образ для выполнения Python (по умолчанию `python:3.12-alpine`)
 - `RUN_TIMEOUT` — таймаут выполнения кода (по умолчанию `60s`)
 
 Docker Compose автоматически подхватывает `.env`. При локальном запуске бекенд загружает `.env` из корня проекта.
@@ -76,10 +78,13 @@ Docker Compose автоматически подхватывает `.env`. Пр�
 
 - JWT authentication (register/login)
 - Per-user file storage (create, save, delete files)
-- Monaco Editor with Go syntax highlighting
+- Monaco Editor with Go and Python syntax highlighting
 - Server-side code execution in isolated Docker containers
-- Console output from `fmt.Println` and compile/runtime errors from stderr
+- Console output from stdout and compile/runtime errors from stderr
 
 ## User code requirements
 
-Programs must be valid Go with `package main` and `func main()`. See [docs/go-playground.md](docs/go-playground.md) for sandbox details.
+- **Go** (`.go`): valid program with `package main` and `func main()`
+- **Python** (`.py`): script executed with `python main.py`
+
+Language is chosen when creating a file and determined by file extension. See [docs/code-playground.md](docs/code-playground.md) for sandbox details.

@@ -4,6 +4,7 @@ import (
 	"archive/tar"
 	"bytes"
 	"context"
+	"fmt"
 	"strings"
 	"time"
 
@@ -14,10 +15,11 @@ import (
 )
 
 const (
-	defaultImage   = "golang:1.21-alpine"
-	defaultTimeout = 60 * time.Second
-	memoryLimit    = 512 * 1024 * 1024
-	nanoCPUs       = 1_000_000_000
+	defaultGoImage     = "golang:1.21-alpine"
+	defaultPythonImage = "python:3.12-alpine"
+	defaultTimeout     = 60 * time.Second
+	memoryLimit        = 512 * 1024 * 1024
+	nanoCPUs           = 1_000_000_000
 )
 
 type Result struct {
@@ -26,14 +28,17 @@ type Result struct {
 }
 
 type DockerRunner struct {
-	image   string
+	specs   map[Language]Spec
 	timeout time.Duration
 	cli     *client.Client
 }
 
-func NewDockerRunner(image string, timeout time.Duration) (*DockerRunner, error) {
-	if image == "" {
-		image = defaultImage
+func NewDockerRunner(goImage, pythonImage string, timeout time.Duration) (*DockerRunner, error) {
+	if goImage == "" {
+		goImage = defaultGoImage
+	}
+	if pythonImage == "" {
+		pythonImage = defaultPythonImage
 	}
 	if timeout <= 0 {
 		timeout = defaultTimeout
@@ -42,10 +47,19 @@ func NewDockerRunner(image string, timeout time.Duration) (*DockerRunner, error)
 	if err != nil {
 		return nil, err
 	}
-	return &DockerRunner{image: image, timeout: timeout, cli: cli}, nil
+	return &DockerRunner{
+		specs:   buildSpecs(goImage, pythonImage),
+		timeout: timeout,
+		cli:     cli,
+	}, nil
 }
 
-func (r *DockerRunner) Run(ctx context.Context, code string) Result {
+func (r *DockerRunner) Run(ctx context.Context, lang Language, code string) Result {
+	spec, ok := r.specs[lang]
+	if !ok {
+		return Result{Error: fmt.Sprintf("unsupported language: %s", lang)}
+	}
+
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -61,13 +75,13 @@ func (r *DockerRunner) Run(ctx context.Context, code string) Result {
 	runCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
-	containerID, err := r.createContainer(runCtx)
+	containerID, err := r.createContainer(runCtx, spec)
 	if err != nil {
 		return Result{Error: err.Error()}
 	}
 	defer r.removeContainer(context.Background(), containerID)
 
-	if err := r.copyMainGo(runCtx, containerID, code); err != nil {
+	if err := r.copyCode(runCtx, containerID, spec, code); err != nil {
 		return Result{Error: "failed to copy code into container: " + err.Error()}
 	}
 
@@ -135,10 +149,10 @@ func (r *DockerRunner) Run(ctx context.Context, code string) Result {
 	return Result{Output: stdout}
 }
 
-func (r *DockerRunner) createContainer(ctx context.Context) (string, error) {
+func (r *DockerRunner) createContainer(ctx context.Context, spec Spec) (string, error) {
 	resp, err := r.cli.ContainerCreate(ctx, &container.Config{
-		Image:      r.image,
-		Cmd:        []string{"go", "run", "/workspace/main.go"},
+		Image:      spec.Image,
+		Cmd:        spec.Cmd,
 		WorkingDir: "/workspace",
 	}, &container.HostConfig{
 		NetworkMode: "none",
@@ -153,11 +167,11 @@ func (r *DockerRunner) createContainer(ctx context.Context) (string, error) {
 	return resp.ID, nil
 }
 
-func (r *DockerRunner) copyMainGo(ctx context.Context, containerID, code string) error {
+func (r *DockerRunner) copyCode(ctx context.Context, containerID string, spec Spec, code string) error {
 	var buf bytes.Buffer
 	tw := tar.NewWriter(&buf)
 	if err := tw.WriteHeader(&tar.Header{
-		Name: "main.go",
+		Name: spec.Filename,
 		Mode: 0o644,
 		Size: int64(len(code)),
 	}); err != nil {

@@ -19,7 +19,8 @@ func NewRunHandler(r *runner.DockerRunner, timeout time.Duration) *RunHandler {
 }
 
 type RunRequest struct {
-	Code string `json:"code" binding:"required"`
+	Code     string `json:"code" binding:"required"`
+	Language string `json:"language" binding:"required,oneof=go python"`
 }
 
 type RunResponse struct {
@@ -39,7 +40,12 @@ func (h *RunHandler) Run(c *gin.Context) {
 	}
 	ctx, cancel := context.WithTimeout(c.Request.Context(), h.timeout)
 	defer cancel()
-	res := h.runner.Run(ctx, req.Code)
+	lang, ok := runner.ParseLanguage(req.Language)
+	if !ok {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "unsupported language"})
+		return
+	}
+	res := h.runner.Run(ctx, lang, req.Code)
 	c.JSON(http.StatusOK, RunResponse{
 		Output: res.Output,
 		Error:  res.Error,

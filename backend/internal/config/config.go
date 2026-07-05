@@ -19,8 +19,9 @@ type Config struct {
 	AdminEmail    string
 	AdminPassword string
 	AdminFullname string
-	GoRunnerImage string
-	RunTimeout    time.Duration
+	GoRunnerImage     string
+	PythonRunnerImage string
+	RunTimeout        time.Duration
 }
 
 func Load() *Config {
@@ -51,7 +52,8 @@ func Load() *Config {
 		AdminEmail:    os.Getenv("ADMIN_EMAIL"),
 		AdminPassword: os.Getenv("ADMIN_PASSWORD"),
 		AdminFullname: getEnvOrDefault("ADMIN_FULLNAME", "Admin"),
-		GoRunnerImage: getEnvOrDefault("GO_RUNNER_IMAGE", "golang:1.21-alpine"),
-		RunTimeout:    runTimeout,
+		GoRunnerImage:     getEnvOrDefault("GO_RUNNER_IMAGE", "golang:1.21-alpine"),
+		PythonRunnerImage: getEnvOrDefault("PYTHON_RUNNER_IMAGE", "python:3.12-alpine"),
+		RunTimeout:        runTimeout,
 	}
 }

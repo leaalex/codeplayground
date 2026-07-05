@@ -10,6 +10,11 @@ import CodeEditor from '../components/CodeEditor.vue'
 import ConsoleOutput from '../components/ConsoleOutput.vue'
 import { useAuth } from '../composables/useAuth'
 import { api } from '../composables/useApi'
+import {
+  detectLanguage,
+  defaultTemplate,
+  preserveExtension,
+} from '../utils/language'
 
 const route = useRoute()
 const router = useRouter()
@@ -39,7 +44,7 @@ async function loadFile() {
     const file = await api(`/files/${id}`)
     fileName.value = file.name
     verified.value = file.verified || false
-    code.value = file.content || 'package main\n\nimport "fmt"\n\nfunc main() {\n\tfmt.Println("Hello!")\n}\n'
+    code.value = file.content || defaultTemplate(detectLanguage(file.name))
     fileUserId.value = file.user_id
     fileUser.value = file.user
   } catch (e) {
@@ -56,7 +61,7 @@ async function runCode(source) {
   try {
     const res = await api('/run', {
       method: 'POST',
-      body: JSON.stringify({ code: source }),
+      body: JSON.stringify({ code: source, language: language.value }),
     })
     if (res.error) {
       logs.value = [{ type: 'error', args: res.error }]
@@ -102,8 +107,7 @@ function cancelRename() {
 }
 
 async function saveRename() {
-  const name = renameValue.value.trim() || 'untitled.go'
-  const finalName = name.endsWith('.go') ? name : name + '.go'
+  const finalName = preserveExtension(renameValue.value, fileName.value)
   if (!route.params.id) return
   try {
     await api(`/files/${route.params.id}`, {
@@ -137,6 +141,8 @@ const breadcrumbLabel = computed(() => {
   const u = fileUser.value
   return (u?.fullname || u?.email || 'Unknown').trim() || 'Unknown'
 })
+
+const language = computed(() => detectLanguage(fileName.value))
 
 watch(() => route.params.id, loadFile, { immediate: true })
 </script>
@@ -222,7 +228,7 @@ watch(() => route.params.id, loadFile, { immediate: true })
       <Splitpanes :horizontal="horizontal" class="h-full">
         <Pane :min-size="35" :size="70">
           <div class="h-full">
-            <CodeEditor v-model="code" @run="handleRun" @save="save" />
+            <CodeEditor v-model="code" :language="language" @run="handleRun" @save="save" />
           </div>
         </Pane>
         <Pane :min-size="10" :size="30">
