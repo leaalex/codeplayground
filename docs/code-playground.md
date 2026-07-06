@@ -133,6 +133,28 @@ API:
 - `DELETE /api/files/:id/presence` — снятие presence
 - `GET /api/files/presence` — admin only, карта `{ file_id: { user_id, fullname, email } }`
 
+## Instructions (Markdown)
+
+Admin может создавать файлы `.md` с текстом задания и привязывать их к кодовым файлам (`.go`, `.py`).
+
+| Функция | Описание |
+|---------|----------|
+| Тип **Markdown** | Третий тип файла; создаёт и редактирует только admin |
+| Связь | Поле `instructions_file_id` на кодовом файле → один MD может быть привязан к нескольким заданиям |
+| Список для student | `.md` файлы скрыты; student видит только свои code files |
+| Просмотр | Student открывает code file → боковая панель **Задание** с отрендеренным markdown |
+| Привязка | Admin: колонка **Instruction** в списке файлов или фильтр **Instructions** |
+| Удаление MD | Запрещено, пока файл привязан к code files (HTTP 409) |
+
+API:
+- `POST /api/files` — student не может создать `.md`
+- `PUT /api/files/:id` — `{ "instructions_file_id": 5 }` или `{ "clear_instructions": true }` (admin only, только для code files)
+- `GET /api/files/:id` — для code file возвращает вложенный объект `instructions: { id, name, content }` при наличии связи
+
+Редактор markdown (admin): TipTap WYSIWYG; в БД хранится markdown. Просмотр учеником — rendered preview (`marked`).
+
+Ограничения редактора: `@tiptap/markdown` — early release; сложные конструкции (таблицы, вложенные списки) могут теряться при round-trip MD ↔ TipTap. Для заданий достаточно StarterKit: заголовки, списки, bold/italic, code block, blockquote.
+
 ## Ограничения
 
 - Первый запуск Go может занять 1–3 секунды из-за компиляции внутри контейнера

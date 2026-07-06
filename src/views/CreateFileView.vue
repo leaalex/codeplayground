@@ -1,8 +1,9 @@
 <script setup>
-import { ref, computed } from 'vue'
-import { useRouter } from 'vue-router'
+import { ref, computed, onMounted } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import AppHeader from '../components/AppHeader.vue'
 import AppFooter from '../components/AppFooter.vue'
+import { useAuth } from '../composables/useAuth'
 import { api } from '../composables/useApi'
 import {
   defaultTemplate,
@@ -11,16 +12,27 @@ import {
   languageLabel,
 } from '../utils/language'
 
+const route = useRoute()
 const router = useRouter()
+const { isAdmin } = useAuth()
+
 const name = ref('')
 const path = ref('')
 const language = ref('go')
 const error = ref('')
 const creating = ref(false)
 
-const namePlaceholder = computed(() =>
-  language.value === 'python' ? 'main.py' : 'main.go'
-)
+onMounted(() => {
+  if (route.query.lang === 'markdown' && isAdmin.value) {
+    language.value = 'markdown'
+  }
+})
+
+const namePlaceholder = computed(() => {
+  if (language.value === 'python') return 'main.py'
+  if (language.value === 'markdown') return 'lesson.md'
+  return 'main.go'
+})
 
 async function create() {
   const fileName = ensureExtension(name.value.trim() || defaultFileName(language.value), language.value)
@@ -65,7 +77,7 @@ async function create() {
         <div class="space-y-3">
           <div>
             <label class="mb-0.5 block text-xs font-medium text-slate-700">Language</label>
-            <div class="flex gap-2">
+            <div class="flex flex-wrap gap-2">
               <label class="flex cursor-pointer items-center gap-1.5 rounded border border-slate-300 px-3 py-1.5 text-sm has-[:checked]:border-blue-500 has-[:checked]:bg-blue-50">
                 <input v-model="language" type="radio" value="go" class="text-blue-600" />
                 Go
@@ -73,6 +85,13 @@ async function create() {
               <label class="flex cursor-pointer items-center gap-1.5 rounded border border-slate-300 px-3 py-1.5 text-sm has-[:checked]:border-blue-500 has-[:checked]:bg-blue-50">
                 <input v-model="language" type="radio" value="python" class="text-blue-600" />
                 Python
+              </label>
+              <label
+                v-if="isAdmin"
+                class="flex cursor-pointer items-center gap-1.5 rounded border border-slate-300 px-3 py-1.5 text-sm has-[:checked]:border-blue-500 has-[:checked]:bg-blue-50"
+              >
+                <input v-model="language" type="radio" value="markdown" class="text-blue-600" />
+                Markdown
               </label>
             </div>
           </div>

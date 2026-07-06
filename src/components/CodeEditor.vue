@@ -1,6 +1,7 @@
 <script setup>
 import { ref, onMounted, onBeforeUnmount, watch } from 'vue'
 import { monacoLanguage } from '../utils/language'
+import { preloadMonacoLanguages } from '../monaco/languages'
 
 const props = defineProps({
   modelValue: {
@@ -24,10 +25,12 @@ let editor = null
 let monaco = null
 
 onMounted(async () => {
+  await preloadMonacoLanguages()
   monaco = await import('monaco-editor')
+  const lang = monacoLanguage(props.language)
   editor = monaco.editor.create(editorRef.value, {
     value: props.modelValue,
-    language: monacoLanguage(props.language),
+    language: lang,
     theme: 'vs',
     automaticLayout: true,
     minimap: { enabled: false },
@@ -37,6 +40,7 @@ onMounted(async () => {
     fontFamily: "'IBM Plex Mono', monospace",
     readOnly: props.readOnly,
   })
+  monaco.editor.setModelLanguage(editor.getModel(), lang)
 
   editor.onDidChangeModelContent(() => {
     emit('update:modelValue', editor.getValue())

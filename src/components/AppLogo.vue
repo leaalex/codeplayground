@@ -21,7 +21,7 @@ const sizeClasses = {
 <template>
   <img
     src="/logo.svg"
-    alt="Go Playground"
+    alt="Code Playground"
     :class="[
       sizeClasses[size],
       'w-auto shrink-0 object-contain object-left',

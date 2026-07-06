@@ -3,7 +3,7 @@ import { api } from './useApi'
 
 const HEARTBEAT_MS = 20000
 
-export function useFilePresence({ fileId, fileUserId, user, isWatchMode, loading }) {
+export function useFilePresence({ fileId, fileUserId, user, isWatchMode, loading, isCodeFile }) {
   let heartbeatTimer = null
   let activeFileId = null
 
@@ -22,6 +22,7 @@ export function useFilePresence({ fileId, fileUserId, user, isWatchMode, loading
   }
 
   function isOwnerActive() {
+    if (unref(isCodeFile) === false) return false
     if (unref(isWatchMode) || unref(loading)) return false
     const id = unref(fileId)
     const ownerId = unref(fileUserId)
@@ -66,7 +67,7 @@ export function useFilePresence({ fileId, fileUserId, user, isWatchMode, loading
     }
   }
 
-  watch([fileId, fileUserId, user, isWatchMode, loading], () => {
+  watch([fileId, fileUserId, user, isWatchMode, loading, isCodeFile], () => {
     syncPresence()
   })
 

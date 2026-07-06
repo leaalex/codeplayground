@@ -1,9 +1,10 @@
 <script setup>
 import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { PencilSquareIcon, CheckIcon, EyeIcon, XMarkIcon } from '@heroicons/vue/24/outline'
+import { PencilSquareIcon, CheckIcon, EyeIcon, XMarkIcon, SignalIcon, ArrowDownTrayIcon, TrashIcon } from '@heroicons/vue/24/outline'
 import AppHeader from '../components/AppHeader.vue'
 import AppFooter from '../components/AppFooter.vue'
+import FileTypeIcon from '../components/FileTypeIcon.vue'
 import { useAuth } from '../composables/useAuth'
 import { useFilesFilters } from '../composables/useFilesFilters'
 import { api } from '../composables/useApi'
@@ -13,7 +14,8 @@ import {
   defaultTemplate,
   preserveExtension,
   exportMimeType,
-  languageLabel,
+  isCodeFile,
+  isMarkdownFile,
 } from '../utils/language'
 
 const LIST_POLL_MS = 10000
@@ -29,6 +31,7 @@ const {
   sortBy,
   sortAsc,
   groupBy,
+  typeFilter,
   initFromQuery,
 } = useFilesFilters(route, router, isAdmin)
 
@@ -89,6 +92,12 @@ const filteredFiles = computed(() => {
 
   if (isAdmin.value && userFilter.value) {
     list = list.filter((f) => (f.user?.email || 'unknown') === userFilter.value)
+  }
+
+  if (isAdmin.value && typeFilter.value === 'code') {
+    list = list.filter((f) => isCodeFile(f.name))
+  } else if (isAdmin.value && typeFilter.value === 'instructions') {
+    list = list.filter((f) => isMarkdownFile(f.name))
   }
 
   list.sort((a, b) => {
@@ -158,6 +167,10 @@ const groupedFiles = computed(() => {
   return result
 })
 
+const markdownFiles = computed(() => files.value.filter((f) => isMarkdownFile(f.name)))
+
+const importAccept = computed(() => (isAdmin.value ? '.go,.py,.md' : '.go,.py'))
+
 function setSort(field) {
   if (sortBy.value === field) {
     sortAsc.value = !sortAsc.value
@@ -187,6 +200,28 @@ function toggleSelectAllInGroup(group) {
 
 function isGroupAllSelected(group) {
   return group.files.length > 0 && group.files.every((f) => selectedFileIds.value.has(f.id))
+}
+
+async function linkInstructions(file, e) {
+  if (!isAdmin.value || !isCodeFile(file.name)) return
+  const val = e.target.value
+  try {
+    const body = val === ''
+      ? { clear_instructions: true }
+      : { instructions_file_id: Number(val) }
+    const updated = await api(`/files/${file.id}`, {
+      method: 'PUT',
+      body: JSON.stringify(body),
+    })
+    file.instructions_file_id = updated.instructions_file_id ?? null
+  } catch (err) {
+    alert(err.message)
+  }
+}
+
+function instructionName(fileId) {
+  const md = markdownFiles.value.find((f) => f.id === fileId)
+  return md?.name || ''
 }
 
 async function batchVerify(verified) {
@@ -491,6 +526,13 @@ watch(
         Users
       </router-link>
       <router-link
+        v-if="isAdmin"
+        to="/files/new?lang=markdown"
+        class="rounded border border-violet-300 bg-violet-50 px-3 py-1.5 text-xs font-medium text-violet-800 hover:bg-violet-100"
+      >
+        New instruction
+      </router-link>
+      <router-link
         to="/files/new"
         class="rounded bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700"
       >
@@ -514,7 +556,7 @@ watch(
       <input
         ref="importInputRef"
         type="file"
-        accept=".go,.py"
+        :accept="importAccept"
         class="hidden"
         @change="onImport"
       />
@@ -536,6 +578,32 @@ watch(
             placeholder="Search by name or student..."
             class="min-w-[160px] rounded border border-slate-300 px-2 py-1 text-xs"
           />
+          <div class="flex gap-0.5">
+            <button
+              type="button"
+              class="rounded px-2 py-0.5 text-xs"
+              :class="typeFilter === 'all' ? 'bg-slate-200 text-slate-800' : 'text-slate-600 hover:bg-slate-100'"
+              @click="typeFilter = 'all'"
+            >
+              All types
+            </button>
+            <button
+              type="button"
+              class="rounded px-2 py-0.5 text-xs"
+              :class="typeFilter === 'code' ? 'bg-slate-200 text-slate-800' : 'text-slate-600 hover:bg-slate-100'"
+              @click="typeFilter = 'code'"
+            >
+              Code
+            </button>
+            <button
+              type="button"
+              class="rounded px-2 py-0.5 text-xs"
+              :class="typeFilter === 'instructions' ? 'bg-slate-200 text-slate-800' : 'text-slate-600 hover:bg-slate-100'"
+              @click="typeFilter = 'instructions'"
+            >
+              Instructions
+            </button>
+          </div>
           <div class="flex gap-0.5">
             <button
               type="button"
@@ -645,15 +713,16 @@ watch(
                 {{ group.label }}
               </span>
             </div>
-            <table class="w-full table-fixed">
+            <div class="overflow-x-auto">
+            <table class="w-full table-fixed min-w-[720px]">
               <colgroup>
                 <col v-if="isAdmin" style="width: 28px" />
-                <col style="width: 24%" />
-                <col v-if="isAdmin" style="width: 16%" />
+                <col style="width: 22%" />
+                <col v-if="isAdmin" style="width: 14%" />
+                <col v-if="isAdmin" style="width: 12%" />
                 <col style="width: 36px" />
-                <col style="width: 20%" />
-                <col style="width: 14%" />
-                <col style="width: auto" />
+                <col style="width: 18%" />
+                <col style="width: 260px" />
               </colgroup>
               <thead>
                 <tr class="border-b border-slate-200 text-left text-xs text-slate-500">
@@ -681,6 +750,7 @@ watch(
                     <span v-else>Name</span>
                   </th>
                   <th v-if="isAdmin" class="px-4 py-2 font-medium">Author</th>
+                  <th v-if="isAdmin" class="px-4 py-2 font-medium">Instruction</th>
                   <th class="px-1 py-2 text-center font-medium">
                     <template v-if="isAdmin">
                       <button
@@ -694,7 +764,6 @@ watch(
                     </template>
                     <span v-else>✓</span>
                   </th>
-                  <th class="px-4 py-2 font-medium">Path</th>
                   <th class="px-4 py-2 font-medium">
                     <template v-if="isAdmin">
                       <button
@@ -740,15 +809,18 @@ watch(
                       <template v-else>
                         <button
                           type="button"
-                          class="min-w-0 truncate text-left text-xs font-medium text-blue-600 hover:underline"
+                          class="flex min-w-0 items-center gap-1 truncate text-left text-xs font-medium text-blue-600 hover:underline"
                           @click="openFile(file)"
                         >
-                          {{ file.name }}
+                          <FileTypeIcon :filename="file.name" />
+                          <span class="truncate">{{ file.name }}</span>
                         </button>
                         <span
-                          class="shrink-0 rounded bg-slate-100 px-1 py-0.5 text-[10px] font-medium text-slate-600"
+                          v-if="isAdmin && isCodeFile(file.name) && file.instructions_file_id"
+                          class="shrink-0 rounded bg-violet-100 px-1 py-0.5 text-[10px] font-medium text-violet-700"
+                          :title="instructionName(file.instructions_file_id)"
                         >
-                          {{ languageLabel(detectLanguage(file.name)) }}
+                          Instructions
                         </span>
                         <span
                           v-if="isAdmin && file.autosave_enabled === false"
@@ -785,6 +857,20 @@ watch(
                       </option>
                     </select>
                   </td>
+                  <td v-if="isAdmin" class="px-4 py-2">
+                    <select
+                      v-if="isCodeFile(file.name)"
+                      :value="file.instructions_file_id ?? ''"
+                      class="max-w-full truncate rounded border border-slate-300 px-1 py-0.5 text-xs"
+                      @change="linkInstructions(file, $event)"
+                    >
+                      <option value="">None</option>
+                      <option v-for="md in markdownFiles" :key="md.id" :value="md.id">
+                        {{ md.name }}
+                      </option>
+                    </select>
+                    <span v-else class="text-xs text-slate-400">—</span>
+                  </td>
                   <td class="px-1 py-2 text-center align-middle">
                     <template v-if="isAdmin">
                       <button
@@ -799,22 +885,13 @@ watch(
                     </template>
                     <CheckIcon v-else-if="file.verified" class="mx-auto h-4 w-4 text-green-600" stroke-width="2.5" />
                   </td>
-                  <td class="truncate px-4 py-2 text-xs text-slate-600" :title="file.path || '-'">{{ file.path || '-' }}</td>
                   <td class="truncate px-4 py-2 text-xs text-slate-500">{{ formatDate(file.updated_at) }}</td>
-                  <td class="px-4 py-2">
-                    <div class="flex flex-wrap gap-1">
-                      <button
-                        type="button"
-                        class="rounded px-1.5 py-0.5 text-xs text-blue-600 hover:bg-blue-50"
-                        @click="openFile(file)"
-                      >
-                        Open
-                      </button>
+                  <td class="whitespace-nowrap px-2 py-2">
+                    <div class="flex flex-nowrap items-center gap-1">
                       <button
                         v-if="isAdmin"
                         type="button"
-                        class="inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-xs text-slate-600 hover:bg-slate-100"
-                        title="Preview"
+                        class="inline-flex shrink-0 items-center gap-0.5 rounded px-1.5 py-0.5 text-xs text-slate-600 hover:bg-slate-100"
                         @click="previewFile = file"
                       >
                         <EyeIcon class="h-3.5 w-3.5" />
@@ -823,24 +900,26 @@ watch(
                       <button
                         v-if="isAdmin"
                         type="button"
-                        class="inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-xs text-violet-700 hover:bg-violet-50"
-                        title="Watch (read-only)"
+                        class="inline-flex shrink-0 items-center gap-0.5 rounded px-1.5 py-0.5 text-xs text-violet-700 hover:bg-violet-50"
                         @click="watchFile(file)"
                       >
+                        <SignalIcon class="h-3.5 w-3.5" />
                         Watch
                       </button>
                       <button
                         type="button"
-                        class="rounded px-1.5 py-0.5 text-xs text-slate-600 hover:bg-slate-100"
+                        class="inline-flex shrink-0 items-center gap-0.5 rounded px-1.5 py-0.5 text-xs text-slate-600 hover:bg-slate-100"
                         @click="exportFile(file)"
                       >
+                        <ArrowDownTrayIcon class="h-3.5 w-3.5" />
                         Export
                       </button>
                       <button
                         type="button"
-                        class="rounded px-1.5 py-0.5 text-xs text-red-600 hover:bg-red-50"
+                        class="inline-flex shrink-0 items-center gap-0.5 rounded px-1.5 py-0.5 text-xs text-red-600 hover:bg-red-50"
                         @click="deleteFile(file, $event)"
                       >
+                        <TrashIcon class="h-3.5 w-3.5" />
                         Delete
                       </button>
                     </div>
@@ -848,6 +927,7 @@ watch(
                 </tr>
               </tbody>
             </table>
+            </div>
           </template>
 
           <div v-if="files.length === 0 && !loading" class="px-4 py-8 text-center text-sm text-slate-500">
@@ -867,8 +947,9 @@ watch(
       >
         <div class="flex max-h-[90vh] w-full max-w-3xl flex-col rounded-lg border border-slate-200 bg-white shadow-xl">
           <div class="flex items-center justify-between border-b border-slate-200 px-4 py-2">
-            <div class="flex items-center gap-2">
-              <span class="text-sm font-medium text-slate-800">{{ previewFile.name }}</span>
+            <div class="flex items-center gap-2 text-slate-800">
+              <FileTypeIcon :filename="previewFile.name" />
+              <span class="text-sm font-medium">{{ previewFile.name }}</span>
               <span
                 v-if="previewFile.verified"
                 class="rounded bg-green-100 px-1.5 py-0.5 text-[10px] font-medium text-green-700"

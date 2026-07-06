@@ -1,4 +1,4 @@
-# Go Playground
+# Code Playground
 
 A Go and Python playground with authentication, file storage, and isolated server-side code execution via Docker.
 

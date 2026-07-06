@@ -13,9 +13,11 @@ type File struct {
 	Name      string         `gorm:"not null" json:"name"`
 	Path      string         `gorm:"default:''" json:"path"`
 	Content         string         `gorm:"type:text" json:"content"`
-	Verified        bool           `gorm:"default:false" json:"verified"`
-	AutosaveEnabled bool           `gorm:"default:true" json:"autosave_enabled"`
-	CreatedAt       time.Time      `json:"created_at"`
+	Verified             bool           `gorm:"default:false" json:"verified"`
+	AutosaveEnabled      bool           `gorm:"default:true" json:"autosave_enabled"`
+	InstructionsFileID   *uint          `gorm:"index" json:"instructions_file_id"`
+	InstructionsFile     *File          `gorm:"foreignKey:InstructionsFileID" json:"-"`
+	CreatedAt            time.Time      `json:"created_at"`
 	UpdatedAt time.Time      `json:"updated_at"`
 	DeletedAt gorm.DeletedAt `gorm:"index" json:"-"`
 }

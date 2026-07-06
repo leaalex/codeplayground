@@ -5,6 +5,7 @@ const SEARCH_DEBOUNCE_MS = 400
 const VERIFIED_VALUES = new Set(['all', 'verified', 'unverified'])
 const SORT_VALUES = new Set(['name', 'verified', 'updated_at'])
 const GROUP_VALUES = new Set(['author', 'verified', 'none'])
+const TYPE_VALUES = new Set(['all', 'code', 'instructions'])
 
 function parseVerified(raw) {
   const v = raw?.toString() || 'all'
@@ -19,6 +20,11 @@ function parseSort(raw) {
 function parseGroup(raw) {
   const v = raw?.toString() || 'author'
   return GROUP_VALUES.has(v) ? v : 'author'
+}
+
+function parseType(raw) {
+  const v = raw?.toString() || 'all'
+  return TYPE_VALUES.has(v) ? v : 'all'
 }
 
 function normalizeQuery(query) {
@@ -46,6 +52,7 @@ export function useFilesFilters(route, router, isAdmin) {
   const sortBy = ref('updated_at')
   const sortAsc = ref(false)
   const groupBy = ref('author')
+  const typeFilter = ref('all')
 
   let syncing = false
   let searchDebounceTimer = null
@@ -59,11 +66,13 @@ export function useFilesFilters(route, router, isAdmin) {
       verifiedFilter.value = parseVerified(q.verified)
       userFilter.value = q.user?.toString() || ''
       groupBy.value = parseGroup(q.group)
+      typeFilter.value = parseType(q.type)
     } else {
       searchQuery.value = ''
       verifiedFilter.value = 'all'
       userFilter.value = ''
       groupBy.value = 'author'
+      typeFilter.value = 'all'
     }
 
     sortBy.value = parseSort(q.sort)
@@ -81,6 +90,7 @@ export function useFilesFilters(route, router, isAdmin) {
       if (verifiedFilter.value !== 'all') query.verified = verifiedFilter.value
       if (userFilter.value) query.user = userFilter.value
       if (groupBy.value !== 'author') query.group = groupBy.value
+      if (typeFilter.value !== 'all') query.type = typeFilter.value
     }
 
     if (sortBy.value !== 'updated_at') query.sort = sortBy.value
@@ -112,7 +122,7 @@ export function useFilesFilters(route, router, isAdmin) {
     }
   )
 
-  watch([verifiedFilter, userFilter, sortBy, sortAsc, groupBy], () => {
+  watch([verifiedFilter, userFilter, sortBy, sortAsc, groupBy, typeFilter], () => {
     syncToQuery()
   })
 
@@ -131,6 +141,7 @@ export function useFilesFilters(route, router, isAdmin) {
     sortBy,
     sortAsc,
     groupBy,
+    typeFilter,
     initFromQuery,
   }
 }

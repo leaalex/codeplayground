@@ -8,6 +8,8 @@ import AppHeader from '../components/AppHeader.vue'
 import AppFooter from '../components/AppFooter.vue'
 import CodeEditor from '../components/CodeEditor.vue'
 import ConsoleOutput from '../components/ConsoleOutput.vue'
+import InstructionsPanel from '../components/InstructionsPanel.vue'
+import TipTapEditor from '../components/TipTapEditor.vue'
 import { useAuth } from '../composables/useAuth'
 import { useAutosave } from '../composables/useAutosave'
 import { useFilePresence } from '../composables/useFilePresence'
@@ -16,6 +18,8 @@ import {
   detectLanguage,
   defaultTemplate,
   preserveExtension,
+  isCodeFile,
+  isMarkdownFile,
 } from '../utils/language'
 
 const WATCH_POLL_MS = 2000
@@ -30,6 +34,8 @@ const fileUser = ref(null)
 const verified = ref(false)
 const autosaveEnabled = ref(true)
 const code = ref('// Loading...\n')
+const instructions = ref(null)
+const showInstructionsPanel = ref(false)
 const logs = ref([])
 const running = ref(false)
 const loading = ref(true)
@@ -41,6 +47,8 @@ const lastRemoteUpdatedAt = ref(null)
 let watchPollTimer = null
 
 const isWatchMode = computed(() => route.query.watch === '1' && isAdmin.value)
+const isMarkdownEditor = computed(() => isMarkdownFile(fileName.value))
+const isCodeEditor = computed(() => isCodeFile(fileName.value))
 const autosaveActive = computed(() => !isWatchMode.value)
 
 const { saveStatus, syncBaseline, saveNow } = useAutosave({
@@ -57,6 +65,13 @@ useFilePresence({
   user,
   isWatchMode,
   loading,
+  isCodeFile: isCodeEditor,
+})
+
+const canShowInstructionsButton = computed(() => {
+  if (!isCodeEditor.value) return false
+  if (instructions.value) return true
+  return isAdmin.value
 })
 
 const saveStatusLabel = computed(() => {
@@ -111,6 +126,9 @@ async function pollWatchFile() {
         code.value = next
       }
     }
+    if (file.instructions) {
+      instructions.value = file.instructions
+    }
   } catch (e) {
     console.error(e)
   }
@@ -132,8 +150,12 @@ async function loadFile() {
     code.value = file.content || defaultTemplate(detectLanguage(file.name))
     fileUserId.value = file.user_id
     fileUser.value = file.user
+    instructions.value = file.instructions || null
     lastRemoteUpdatedAt.value = file.updated_at
     syncBaseline(code.value)
+    if (instructions.value && !showInstructionsPanel.value) {
+      showInstructionsPanel.value = true
+    }
     if (isWatchMode.value) {
       startWatchPolling()
     }
@@ -167,7 +189,7 @@ async function runCode(source) {
 }
 
 function handleRun() {
-  if (running.value || isWatchMode.value) return
+  if (running.value || isWatchMode.value || isMarkdownEditor.value) return
   runCode(code.value)
 }
 
@@ -230,6 +252,10 @@ async function toggleAutosave() {
   } catch (e) {
     alert(e.message)
   }
+}
+
+function toggleInstructionsPanel() {
+  showInstructionsPanel.value = !showInstructionsPanel.value
 }
 
 const breadcrumbLabel = computed(() => {
@@ -296,7 +322,7 @@ onBeforeUnmount(() => {
           >
             {{ fileName || 'Loading...' }}
           </h1>
-          <template v-if="!editingName && !isWatchMode">
+          <template v-if="!editingName && !isWatchMode && isCodeEditor">
             <button
               v-if="isAdmin"
               type="button"
@@ -316,6 +342,18 @@ onBeforeUnmount(() => {
           </template>
         </div>
       </template>
+      <button
+        v-if="canShowInstructionsButton"
+        type="button"
+        class="rounded border px-2 py-0.5 text-xs font-medium"
+        :class="showInstructionsPanel
+          ? 'border-violet-400 bg-violet-50 text-violet-800'
+          : 'border-slate-300 bg-white text-slate-600 hover:bg-slate-50'"
+        :title="instructions ? 'Toggle assignment panel' : 'No assignment linked — link in file list'"
+        @click="toggleInstructionsPanel"
+      >
+        {{ instructions ? 'Задание' : 'Нет задания' }}
+      </button>
       <span class="text-xs font-medium" :class="saveStatusClass">{{ saveStatusLabel }}</span>
       <label
         v-if="isAdmin && !isWatchMode"
@@ -331,6 +369,7 @@ onBeforeUnmount(() => {
         Autosave
       </label>
       <button
+        v-if="isCodeEditor"
         type="button"
         class="rounded border border-slate-300 bg-white px-2 py-0.5 text-xs text-slate-600 hover:bg-slate-50"
         :title="horizontal ? 'Code left, console right' : 'Code top, console bottom'"
@@ -348,7 +387,7 @@ onBeforeUnmount(() => {
         {{ saveStatus === 'saving' ? 'Saving...' : 'Save (Ctrl+S)' }}
       </button>
       <button
-        v-if="!isWatchMode"
+        v-if="!isWatchMode && isCodeEditor"
         :disabled="running"
         class="rounded bg-blue-600 px-3 py-1 text-xs font-medium text-white hover:bg-blue-700 disabled:opacity-50"
         @click="handleRun"
@@ -358,7 +397,53 @@ onBeforeUnmount(() => {
     </AppHeader>
 
     <div class="flex-1 min-h-0 overflow-hidden">
-      <Splitpanes :horizontal="horizontal" class="h-full">
+      <!-- Markdown editor (admin) -->
+      <div v-if="isMarkdownEditor" class="h-full">
+        <TipTapEditor
+          v-model="code"
+          :read-only="isWatchMode"
+          @save="save"
+        />
+      </div>
+
+      <!-- Code editor with optional instructions panel -->
+      <Splitpanes
+        v-else-if="showInstructionsPanel && (instructions || isAdmin)"
+        class="h-full"
+      >
+        <Pane :min-size="15" :size="22" :max-size="40">
+          <InstructionsPanel
+            :instructions="instructions"
+            :is-admin="isAdmin"
+            read-only
+          />
+        </Pane>
+        <Pane :min-size="40">
+          <Splitpanes :horizontal="horizontal" class="h-full">
+            <Pane :min-size="35" :size="70">
+              <div class="h-full">
+                <CodeEditor
+                  v-model="code"
+                  :language="language"
+                  :read-only="isWatchMode"
+                  @run="handleRun"
+                  @save="save"
+                />
+              </div>
+            </Pane>
+            <Pane :min-size="10" :size="30">
+              <div class="flex h-full flex-col border-t border-slate-200 bg-white">
+                <div class="flex-1 min-h-0 overflow-auto">
+                  <ConsoleOutput :logs="logs" :running="running" />
+                </div>
+              </div>
+            </Pane>
+          </Splitpanes>
+        </Pane>
+      </Splitpanes>
+
+      <!-- Code editor without instructions -->
+      <Splitpanes v-else :horizontal="horizontal" class="h-full">
         <Pane :min-size="35" :size="70">
           <div class="h-full">
             <CodeEditor
