@@ -54,7 +54,7 @@ func main() {
 
 	fileRepo := repository.NewFileRepository(db)
 	authHandler := handlers.NewAuthHandler(userRepo, cfg.JWTSecret, cfg.AdminEmail)
-	filesHandler := handlers.NewFilesHandler(fileRepo)
+	filesHandler := handlers.NewFilesHandler(fileRepo, userRepo)
 	usersHandler := handlers.NewUsersHandler(userRepo)
 	runHandler := handlers.NewRunHandler(dockerRunner, cfg.RunTimeout)
 

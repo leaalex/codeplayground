@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onBeforeUnmount } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { CheckIcon } from '@heroicons/vue/24/outline'
 import { Splitpanes, Pane } from 'splitpanes'
@@ -9,12 +9,15 @@ import AppFooter from '../components/AppFooter.vue'
 import CodeEditor from '../components/CodeEditor.vue'
 import ConsoleOutput from '../components/ConsoleOutput.vue'
 import { useAuth } from '../composables/useAuth'
+import { useAutosave } from '../composables/useAutosave'
 import { api } from '../composables/useApi'
 import {
   detectLanguage,
   defaultTemplate,
   preserveExtension,
 } from '../utils/language'
+
+const WATCH_POLL_MS = 2000
 
 const route = useRoute()
 const router = useRouter()
@@ -24,14 +27,85 @@ const fileName = ref('')
 const fileUserId = ref(null)
 const fileUser = ref(null)
 const verified = ref(false)
+const autosaveEnabled = ref(true)
 const code = ref('// Loading...\n')
 const logs = ref([])
 const running = ref(false)
-const saving = ref(false)
 const loading = ref(true)
 const horizontal = ref(false)
 const editingName = ref(false)
 const renameValue = ref('')
+const lastRemoteUpdatedAt = ref(null)
+
+let watchPollTimer = null
+
+const isWatchMode = computed(() => route.query.watch === '1' && isAdmin.value)
+const autosaveActive = computed(() => !isWatchMode.value)
+
+const { saveStatus, syncBaseline, saveNow } = useAutosave({
+  fileId: computed(() => route.params.id),
+  content: code,
+  enabled: autosaveEnabled,
+  loading,
+  active: autosaveActive,
+})
+
+const saveStatusLabel = computed(() => {
+  if (isWatchMode.value) return 'Watching'
+  switch (saveStatus.value) {
+    case 'saving':
+      return 'Saving...'
+    case 'unsaved':
+      return 'Unsaved'
+    case 'error':
+      return 'Save failed'
+    default:
+      return autosaveEnabled.value ? 'Saved' : 'Manual save'
+  }
+})
+
+const saveStatusClass = computed(() => {
+  if (isWatchMode.value) return 'text-violet-600'
+  switch (saveStatus.value) {
+    case 'unsaved':
+      return 'text-amber-600'
+    case 'error':
+      return 'text-red-600'
+    case 'saving':
+      return 'text-slate-500'
+    default:
+      return 'text-green-600'
+  }
+})
+
+function startWatchPolling() {
+  stopWatchPolling()
+  if (!isWatchMode.value) return
+  watchPollTimer = setInterval(pollWatchFile, WATCH_POLL_MS)
+}
+
+function stopWatchPolling() {
+  if (watchPollTimer) {
+    clearInterval(watchPollTimer)
+    watchPollTimer = null
+  }
+}
+
+async function pollWatchFile() {
+  if (!isWatchMode.value || !route.params.id) return
+  try {
+    const file = await api(`/files/${route.params.id}`)
+    if (file.updated_at !== lastRemoteUpdatedAt.value) {
+      lastRemoteUpdatedAt.value = file.updated_at
+      const next = file.content ?? defaultTemplate(detectLanguage(file.name))
+      if (next !== code.value) {
+        code.value = next
+      }
+    }
+  } catch (e) {
+    console.error(e)
+  }
+}
 
 async function loadFile() {
   const id = route.params.id
@@ -40,13 +114,20 @@ async function loadFile() {
     return
   }
   loading.value = true
+  stopWatchPolling()
   try {
     const file = await api(`/files/${id}`)
     fileName.value = file.name
     verified.value = file.verified || false
+    autosaveEnabled.value = file.autosave_enabled !== false
     code.value = file.content || defaultTemplate(detectLanguage(file.name))
     fileUserId.value = file.user_id
     fileUser.value = file.user
+    lastRemoteUpdatedAt.value = file.updated_at
+    syncBaseline(code.value)
+    if (isWatchMode.value) {
+      startWatchPolling()
+    }
   } catch (e) {
     alert(e.message)
     router.push('/files')
@@ -77,26 +158,17 @@ async function runCode(source) {
 }
 
 function handleRun() {
-  if (running.value) return
+  if (running.value || isWatchMode.value) return
   runCode(code.value)
 }
 
 async function save() {
-  if (!route.params.id) return
-  saving.value = true
-  try {
-    await api(`/files/${route.params.id}`, {
-      method: 'PUT',
-      body: JSON.stringify({ content: code.value }),
-    })
-  } catch (e) {
-    alert(e.message)
-  } finally {
-    saving.value = false
-  }
+  if (isWatchMode.value) return
+  await saveNow()
 }
 
 function startRename() {
+  if (isWatchMode.value) return
   editingName.value = true
   renameValue.value = fileName.value || ''
 }
@@ -122,13 +194,30 @@ async function saveRename() {
 }
 
 async function toggleVerified() {
-  if (!isAdmin.value || !route.params.id) return
+  if (!isAdmin.value || !route.params.id || isWatchMode.value) return
   try {
     const updated = await api(`/files/${route.params.id}`, {
       method: 'PUT',
       body: JSON.stringify({ verified: !verified.value }),
     })
     verified.value = updated.verified
+  } catch (e) {
+    alert(e.message)
+  }
+}
+
+async function toggleAutosave() {
+  if (!isAdmin.value || !route.params.id || isWatchMode.value) return
+  const next = !autosaveEnabled.value
+  try {
+    const updated = await api(`/files/${route.params.id}`, {
+      method: 'PUT',
+      body: JSON.stringify({ autosave_enabled: next }),
+    })
+    autosaveEnabled.value = updated.autosave_enabled !== false
+    if (autosaveEnabled.value && saveStatus.value === 'unsaved') {
+      await saveNow()
+    }
   } catch (e) {
     alert(e.message)
   }
@@ -145,10 +234,28 @@ const breadcrumbLabel = computed(() => {
 const language = computed(() => detectLanguage(fileName.value))
 
 watch(() => route.params.id, loadFile, { immediate: true })
+
+watch(isWatchMode, (watching) => {
+  if (watching) {
+    startWatchPolling()
+  } else {
+    stopWatchPolling()
+  }
+})
+
+onBeforeUnmount(() => {
+  stopWatchPolling()
+})
 </script>
 
 <template>
   <div class="flex h-screen flex-col overflow-hidden bg-slate-50">
+    <div
+      v-if="isWatchMode"
+      class="border-b border-violet-200 bg-violet-50 px-4 py-1 text-center text-xs font-medium text-violet-800"
+    >
+      Watch mode — read only. Updates appear after the owner saves.
+    </div>
     <AppHeader>
       <template #left>
         <router-link
@@ -173,13 +280,14 @@ watch(() => route.params.id, loadFile, { immediate: true })
           />
           <h1
             v-else
-            class="cursor-pointer text-sm font-medium text-slate-800 hover:text-blue-600"
-            title="Click to rename"
+            class="text-sm font-medium text-slate-800"
+            :class="isWatchMode ? '' : 'cursor-pointer hover:text-blue-600'"
+            :title="isWatchMode ? undefined : 'Click to rename'"
             @click="startRename"
           >
             {{ fileName || 'Loading...' }}
           </h1>
-          <template v-if="!editingName">
+          <template v-if="!editingName && !isWatchMode">
             <button
               v-if="isAdmin"
               type="button"
@@ -199,6 +307,20 @@ watch(() => route.params.id, loadFile, { immediate: true })
           </template>
         </div>
       </template>
+      <span class="text-xs font-medium" :class="saveStatusClass">{{ saveStatusLabel }}</span>
+      <label
+        v-if="isAdmin && !isWatchMode"
+        class="flex cursor-pointer items-center gap-1.5 text-xs text-slate-600"
+        title="Only admins can change autosave for this file"
+      >
+        <input
+          type="checkbox"
+          :checked="autosaveEnabled"
+          class="rounded"
+          @change="toggleAutosave"
+        />
+        Autosave
+      </label>
       <button
         type="button"
         class="rounded border border-slate-300 bg-white px-2 py-0.5 text-xs text-slate-600 hover:bg-slate-50"
@@ -208,14 +330,16 @@ watch(() => route.params.id, loadFile, { immediate: true })
         {{ horizontal ? '⊟ Vertical' : '⊞ Horizontal' }}
       </button>
       <button
-        :disabled="saving"
+        v-if="!isWatchMode"
+        :disabled="saveStatus === 'saving'"
         class="rounded border border-slate-300 bg-white px-3 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
         title="Save (Ctrl+S)"
         @click="save"
       >
-        {{ saving ? 'Saving...' : 'Save (Ctrl+S)' }}
+        {{ saveStatus === 'saving' ? 'Saving...' : 'Save (Ctrl+S)' }}
       </button>
       <button
+        v-if="!isWatchMode"
         :disabled="running"
         class="rounded bg-blue-600 px-3 py-1 text-xs font-medium text-white hover:bg-blue-700 disabled:opacity-50"
         @click="handleRun"
@@ -228,7 +352,13 @@ watch(() => route.params.id, loadFile, { immediate: true })
       <Splitpanes :horizontal="horizontal" class="h-full">
         <Pane :min-size="35" :size="70">
           <div class="h-full">
-            <CodeEditor v-model="code" :language="language" @run="handleRun" @save="save" />
+            <CodeEditor
+              v-model="code"
+              :language="language"
+              :read-only="isWatchMode"
+              @run="handleRun"
+              @save="save"
+            />
           </div>
         </Pane>
         <Pane :min-size="10" :size="30">

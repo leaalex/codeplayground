@@ -11,6 +11,10 @@ const props = defineProps({
     type: String,
     default: 'go',
   },
+  readOnly: {
+    type: Boolean,
+    default: false,
+  },
 })
 
 const emit = defineEmits(['update:modelValue', 'run', 'save'])
@@ -31,18 +35,21 @@ onMounted(async () => {
     scrollBeyondLastLine: false,
     fontSize: 14,
     fontFamily: "'IBM Plex Mono', monospace",
+    readOnly: props.readOnly,
   })
 
   editor.onDidChangeModelContent(() => {
     emit('update:modelValue', editor.getValue())
   })
 
-  editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter, () => {
-    emit('run')
-  })
-  editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => {
-    emit('save')
-  })
+  if (!props.readOnly) {
+    editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter, () => {
+      emit('run')
+    })
+    editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => {
+      emit('save')
+    })
+  }
 })
 
 onBeforeUnmount(() => {
@@ -65,6 +72,15 @@ watch(
   (lang) => {
     if (editor && monaco) {
       monaco.editor.setModelLanguage(editor.getModel(), monacoLanguage(lang))
+    }
+  }
+)
+
+watch(
+  () => props.readOnly,
+  (readOnly) => {
+    if (editor) {
+      editor.updateOptions({ readOnly })
     }
   }
 )

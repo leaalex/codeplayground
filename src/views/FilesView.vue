@@ -1,10 +1,11 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { PencilSquareIcon, CheckIcon, EyeIcon, XMarkIcon } from '@heroicons/vue/24/outline'
 import AppHeader from '../components/AppHeader.vue'
 import AppFooter from '../components/AppFooter.vue'
 import { useAuth } from '../composables/useAuth'
+import { useFilesFilters } from '../composables/useFilesFilters'
 import { api } from '../composables/useApi'
 import {
   detectLanguage,
@@ -15,8 +16,19 @@ import {
   languageLabel,
 } from '../utils/language'
 
+const route = useRoute()
 const router = useRouter()
 const { isAdmin, user } = useAuth()
+
+const {
+  searchQuery,
+  verifiedFilter,
+  userFilter,
+  sortBy,
+  sortAsc,
+  groupBy,
+  initFromQuery,
+} = useFilesFilters(route, router, isAdmin)
 
 const files = ref([])
 const loading = ref(false)
@@ -24,14 +36,10 @@ const importInputRef = ref(null)
 const editingFileId = ref(null)
 const editingName = ref('')
 
-const searchQuery = ref('')
-const verifiedFilter = ref('all')
-const userFilter = ref('')
-const sortBy = ref('updated_at')
-const sortAsc = ref(false)
-const groupBy = ref('author')
 const selectedFileIds = ref(new Set())
 const previewFile = ref(null)
+const allUsers = ref([])
+const batchTransferUserId = ref('')
 
 const availableUsers = computed(() => {
   if (!isAdmin.value) return []
@@ -212,6 +220,60 @@ async function batchDelete() {
   selectedFileIds.value = new Set()
 }
 
+function userOptionLabel(u) {
+  return (u?.fullname || u?.email || 'Unknown').trim() || 'Unknown'
+}
+
+function applyFileUpdate(updated) {
+  const f = files.value.find((x) => x.id === updated.id)
+  if (f) {
+    f.user_id = updated.user_id
+    f.user = updated.user
+    f.name = updated.name
+    f.path = updated.path
+    f.content = updated.content
+    f.verified = updated.verified
+    f.updated_at = updated.updated_at
+  }
+  if (previewFile.value?.id === updated.id) {
+    previewFile.value = { ...previewFile.value, ...updated }
+  }
+}
+
+async function transferOwner(file, userId) {
+  if (!isAdmin.value || userId === file.user_id) return
+  try {
+    const updated = await api(`/files/${file.id}`, {
+      method: 'PUT',
+      body: JSON.stringify({ user_id: userId }),
+    })
+    applyFileUpdate(updated)
+  } catch (e) {
+    alert(e.message)
+  }
+}
+
+async function batchTransfer() {
+  const userId = Number(batchTransferUserId.value)
+  if (!userId) return
+  const ids = [...selectedFileIds.value]
+  if (!ids.length) return
+  try {
+    const results = await Promise.all(
+      ids.map((id) =>
+        api(`/files/${id}`, { method: 'PUT', body: JSON.stringify({ user_id: userId }) })
+      )
+    )
+    for (const updated of results) {
+      applyFileUpdate(updated)
+    }
+  } catch (e) {
+    alert(e.message)
+  }
+  selectedFileIds.value = new Set()
+  batchTransferUserId.value = ''
+}
+
 async function verifyFromPreview() {
   if (!previewFile.value || !isAdmin.value) return
   try {
@@ -230,7 +292,15 @@ async function verifyFromPreview() {
 async function load() {
   loading.value = true
   try {
-    files.value = await api('/files')
+    const requests = [api('/files')]
+    if (isAdmin.value) {
+      requests.push(api('/users'))
+    }
+    const [filesData, usersData] = await Promise.all(requests)
+    files.value = filesData
+    if (isAdmin.value && usersData) {
+      allUsers.value = usersData
+    }
   } catch (e) {
     console.error(e)
   } finally {
@@ -268,6 +338,10 @@ async function deleteFile(file, e) {
 
 function openFile(file) {
   router.push({ name: 'playground', params: { id: file.id } })
+}
+
+function watchFile(file) {
+  router.push({ name: 'playground', params: { id: file.id }, query: { watch: '1' } })
 }
 
 async function toggleVerified(file) {
@@ -338,7 +412,10 @@ async function onImport(e) {
   }
 }
 
-onMounted(load)
+onMounted(() => {
+  initFromQuery()
+  load()
+})
 </script>
 
 <template>
@@ -453,6 +530,23 @@ onMounted(load)
             @click="batchVerify(false)"
           >
             Unverify selected
+          </button>
+          <select
+            v-model="batchTransferUserId"
+            class="rounded border border-slate-300 px-2 py-0.5 text-xs text-slate-700"
+          >
+            <option value="">Transfer to...</option>
+            <option v-for="u in allUsers" :key="u.id" :value="u.id">
+              {{ userOptionLabel(u) }}
+            </option>
+          </select>
+          <button
+            type="button"
+            class="rounded bg-blue-600 px-2 py-0.5 text-xs text-white hover:bg-blue-700 disabled:opacity-50"
+            :disabled="!batchTransferUserId"
+            @click="batchTransfer"
+          >
+            Transfer selected
           </button>
           <button
             type="button"
@@ -586,6 +680,12 @@ onMounted(load)
                         >
                           {{ languageLabel(detectLanguage(file.name)) }}
                         </span>
+                        <span
+                          v-if="isAdmin && file.autosave_enabled === false"
+                          class="shrink-0 rounded bg-amber-100 px-1 py-0.5 text-[10px] font-medium text-amber-700"
+                        >
+                          Autosave off
+                        </span>
                         <button
                           type="button"
                           class="shrink-0 rounded p-0.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
@@ -597,8 +697,16 @@ onMounted(load)
                       </template>
                     </div>
                   </td>
-                  <td v-if="isAdmin" class="truncate px-4 py-2 text-xs text-slate-600" :title="file.user?.fullname || file.user?.email || '-'">
-                    {{ file.user?.fullname || file.user?.email || '-' }}
+                  <td v-if="isAdmin" class="truncate px-4 py-2 text-xs text-slate-600">
+                    <select
+                      :value="file.user_id"
+                      class="max-w-full truncate rounded border border-slate-300 px-1 py-0.5 text-xs"
+                      @change="transferOwner(file, Number($event.target.value))"
+                    >
+                      <option v-for="u in allUsers" :key="u.id" :value="u.id">
+                        {{ userOptionLabel(u) }}
+                      </option>
+                    </select>
                   </td>
                   <td class="px-1 py-2 text-center align-middle">
                     <template v-if="isAdmin">
@@ -634,6 +742,15 @@ onMounted(load)
                       >
                         <EyeIcon class="h-3.5 w-3.5" />
                         Preview
+                      </button>
+                      <button
+                        v-if="isAdmin"
+                        type="button"
+                        class="inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-xs text-violet-700 hover:bg-violet-50"
+                        title="Watch (read-only)"
+                        @click="watchFile(file)"
+                      >
+                        Watch
                       </button>
                       <button
                         type="button"
