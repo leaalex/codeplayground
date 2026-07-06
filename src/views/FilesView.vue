@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { PencilSquareIcon, CheckIcon, EyeIcon, XMarkIcon } from '@heroicons/vue/24/outline'
 import AppHeader from '../components/AppHeader.vue'
@@ -15,6 +15,8 @@ import {
   exportMimeType,
   languageLabel,
 } from '../utils/language'
+
+const LIST_POLL_MS = 10000
 
 const route = useRoute()
 const router = useRouter()
@@ -40,6 +42,10 @@ const selectedFileIds = ref(new Set())
 const previewFile = ref(null)
 const allUsers = ref([])
 const batchTransferUserId = ref('')
+const presenceMap = ref({})
+const refreshing = ref(false)
+
+let listPollTimer = null
 
 const availableUsers = computed(() => {
   if (!isAdmin.value) return []
@@ -289,22 +295,62 @@ async function verifyFromPreview() {
   }
 }
 
-async function load() {
-  loading.value = true
+async function load({ silent = false } = {}) {
+  if (!silent) loading.value = true
+  else refreshing.value = true
   try {
     const requests = [api('/files')]
     if (isAdmin.value) {
-      requests.push(api('/users'))
+      requests.push(api('/users'), api('/files/presence'))
     }
-    const [filesData, usersData] = await Promise.all(requests)
+    const results = await Promise.all(requests)
+    const filesData = results[0]
     files.value = filesData
-    if (isAdmin.value && usersData) {
-      allUsers.value = usersData
+    if (isAdmin.value) {
+      allUsers.value = results[1] || []
+      presenceMap.value = results[2] || {}
+    }
+    if (previewFile.value) {
+      const updated = filesData.find((f) => f.id === previewFile.value.id)
+      if (updated) previewFile.value = updated
     }
   } catch (e) {
     console.error(e)
   } finally {
-    loading.value = false
+    if (!silent) loading.value = false
+    else refreshing.value = false
+  }
+}
+
+function presenceLabel(fileId) {
+  const session = presenceMap.value[String(fileId)]
+  if (!session) return ''
+  return (session.fullname || session.email || 'Owner').trim()
+}
+
+function isFileOpened(fileId) {
+  return Boolean(presenceMap.value[String(fileId)])
+}
+
+function startListPolling() {
+  stopListPolling()
+  listPollTimer = setInterval(() => {
+    if (route.name === 'files') {
+      load({ silent: true })
+    }
+  }, LIST_POLL_MS)
+}
+
+function stopListPolling() {
+  if (listPollTimer) {
+    clearInterval(listPollTimer)
+    listPollTimer = null
+  }
+}
+
+function onVisibilityChange() {
+  if (document.visibilityState === 'visible' && route.name === 'files') {
+    load({ silent: true })
   }
 }
 
@@ -415,7 +461,23 @@ async function onImport(e) {
 onMounted(() => {
   initFromQuery()
   load()
+  startListPolling()
+  document.addEventListener('visibilitychange', onVisibilityChange)
 })
+
+onBeforeUnmount(() => {
+  stopListPolling()
+  document.removeEventListener('visibilitychange', onVisibilityChange)
+})
+
+watch(
+  () => route.name,
+  (name) => {
+    if (name === 'files') {
+      load()
+    }
+  }
+)
 </script>
 
 <template>
@@ -434,6 +496,14 @@ onMounted(() => {
       >
         New file
       </router-link>
+      <button
+        type="button"
+        class="rounded border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+        :disabled="loading || refreshing"
+        @click="load()"
+      >
+        {{ refreshing ? 'Refreshing...' : 'Refresh' }}
+      </button>
       <button
         type="button"
         class="rounded border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
@@ -685,6 +755,13 @@ onMounted(() => {
                           class="shrink-0 rounded bg-amber-100 px-1 py-0.5 text-[10px] font-medium text-amber-700"
                         >
                           Autosave off
+                        </span>
+                        <span
+                          v-if="isAdmin && isFileOpened(file.id)"
+                          class="shrink-0 rounded bg-green-100 px-1 py-0.5 text-[10px] font-medium text-green-700"
+                          :title="`Opened by ${presenceLabel(file.id)}`"
+                        >
+                          Opened
                         </span>
                         <button
                           type="button"

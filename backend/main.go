@@ -5,6 +5,7 @@ import (
 	"goplayground/backend/internal/handlers"
 	"goplayground/backend/internal/middleware"
 	"goplayground/backend/internal/models"
+	"goplayground/backend/internal/presence"
 	"goplayground/backend/internal/repository"
 	"goplayground/backend/internal/runner"
 	"log"
@@ -53,8 +54,10 @@ func main() {
 	defer dockerRunner.Close()
 
 	fileRepo := repository.NewFileRepository(db)
+	presenceStore := presence.NewStore()
 	authHandler := handlers.NewAuthHandler(userRepo, cfg.JWTSecret, cfg.AdminEmail)
 	filesHandler := handlers.NewFilesHandler(fileRepo, userRepo)
+	presenceHandler := handlers.NewPresenceHandler(presenceStore, fileRepo, userRepo)
 	usersHandler := handlers.NewUsersHandler(userRepo)
 	runHandler := handlers.NewRunHandler(dockerRunner, cfg.RunTimeout)
 
@@ -79,8 +82,11 @@ func main() {
 		protected.Use(middleware.Auth(cfg.JWTSecret))
 		{
 			protected.GET("/auth/me", authHandler.Me)
+			protected.GET("/files/presence", presenceHandler.ListAll)
 			protected.GET("/files", filesHandler.List)
 			protected.POST("/files", filesHandler.Create)
+			protected.PUT("/files/:id/presence", presenceHandler.Touch)
+			protected.DELETE("/files/:id/presence", presenceHandler.Leave)
 			protected.GET("/files/:id", filesHandler.Get)
 			protected.PUT("/files/:id", filesHandler.Update)
 			protected.DELETE("/files/:id", filesHandler.Delete)

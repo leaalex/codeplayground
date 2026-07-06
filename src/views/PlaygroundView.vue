@@ -10,6 +10,7 @@ import CodeEditor from '../components/CodeEditor.vue'
 import ConsoleOutput from '../components/ConsoleOutput.vue'
 import { useAuth } from '../composables/useAuth'
 import { useAutosave } from '../composables/useAutosave'
+import { useFilePresence } from '../composables/useFilePresence'
 import { api } from '../composables/useApi'
 import {
   detectLanguage,
@@ -48,6 +49,14 @@ const { saveStatus, syncBaseline, saveNow } = useAutosave({
   enabled: autosaveEnabled,
   loading,
   active: autosaveActive,
+})
+
+useFilePresence({
+  fileId: computed(() => route.params.id),
+  fileUserId,
+  user,
+  isWatchMode,
+  loading,
 })
 
 const saveStatusLabel = computed(() => {
