@@ -1,5 +1,5 @@
 <script setup>
-import { watch } from 'vue'
+import { ref, watch } from 'vue'
 import { useEditor, EditorContent } from '@tiptap/vue-3'
 import StarterKit from '@tiptap/starter-kit'
 import { Markdown } from '@tiptap/markdown'
@@ -17,6 +17,12 @@ import {
   ArrowUturnRightIcon,
 } from '@heroicons/vue/24/outline'
 
+const CODE_BLOCK_LANGUAGES = [
+  { value: '', label: 'Plain' },
+  { value: 'go', label: 'Go' },
+  { value: 'python', label: 'Python' },
+]
+
 const props = defineProps({
   modelValue: {
     type: String,
@@ -30,12 +36,27 @@ const props = defineProps({
 
 const emit = defineEmits(['update:modelValue', 'save'])
 
+const inCodeBlock = ref(false)
+const codeBlockLanguage = ref('')
+
+function syncCodeBlockToolbar(ed) {
+  inCodeBlock.value = ed.isActive('codeBlock')
+  codeBlockLanguage.value = ed.getAttributes('codeBlock').language || ''
+}
+
 const editor = useEditor({
   extensions: [StarterKit, Markdown],
   content: props.modelValue,
   contentType: 'markdown',
   editable: !props.readOnly,
+  onCreate: ({ editor: ed }) => {
+    syncCodeBlockToolbar(ed)
+  },
+  onSelectionUpdate: ({ editor: ed }) => {
+    syncCodeBlockToolbar(ed)
+  },
   onUpdate: ({ editor: ed }) => {
+    syncCodeBlockToolbar(ed)
     emit('update:modelValue', ed.getMarkdown())
   },
   editorProps: {
@@ -79,6 +100,16 @@ function btnClass(active, disabled = false) {
   return active
     ? 'bg-slate-200 text-slate-900'
     : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+}
+
+function setCodeBlockLanguage(lang) {
+  run(() => {
+    editor.value
+      ?.chain()
+      .focus()
+      .updateAttributes('codeBlock', { language: lang || null })
+      .run()
+  })
 }
 </script>
 
@@ -171,6 +202,17 @@ function btnClass(active, disabled = false) {
       >
         <CodeBracketIcon class="h-4 w-4" />
       </button>
+      <select
+        v-if="inCodeBlock"
+        :value="codeBlockLanguage"
+        class="ml-0.5 rounded border border-slate-300 bg-white px-1.5 py-1 text-xs text-slate-700"
+        title="Code block language"
+        @change="setCodeBlockLanguage($event.target.value)"
+      >
+        <option v-for="lang in CODE_BLOCK_LANGUAGES" :key="lang.value || 'plain'" :value="lang.value">
+          {{ lang.label }}
+        </option>
+      </select>
       <span class="mx-1 h-4 w-px bg-slate-200" />
       <button
         type="button"

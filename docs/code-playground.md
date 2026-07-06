@@ -151,7 +151,11 @@ API:
 - `PUT /api/files/:id` — `{ "instructions_file_id": 5 }` или `{ "clear_instructions": true }` (admin only, только для code files)
 - `GET /api/files/:id` — для code file возвращает вложенный объект `instructions: { id, name, content }` при наличии связи
 
-Редактор markdown (admin): TipTap WYSIWYG; в БД хранится markdown. Просмотр учеником — rendered preview (`marked`).
+Редактор markdown (admin): TipTap WYSIWYG; в БД хранится markdown. Просмотр учеником — rendered preview (`marked` + `highlight.js` через `marked-highlight`).
+
+Подсветка кода в preview: fenced block с языком — ` ```go `, ` ```python ` (алиасы `golang`, `py`). Без языка — моноширинный блок без раскраски.
+
+Язык в редакторе TipTap: при активном code block в тулбаре появляется dropdown **Plain / Go / Python**. Выбор сохраняется в markdown и определяет подсветку в preview у ученика. Plain — без раскраски. Подсветки внутри самого WYSIWYG-редактора пока нет.
 
 Ограничения редактора: `@tiptap/markdown` — early release; сложные конструкции (таблицы, вложенные списки) могут теряться при round-trip MD ↔ TipTap. Для заданий достаточно StarterKit: заголовки, списки, bold/italic, code block, blockquote.
 

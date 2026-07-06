@@ -1,7 +1,8 @@
 <script setup>
 import { computed } from 'vue'
-import { marked } from 'marked'
 import DOMPurify from 'dompurify'
+import { markdown } from '../utils/markdown'
+import 'highlight.js/styles/github.min.css'
 
 const props = defineProps({
   content: {
@@ -11,8 +12,10 @@ const props = defineProps({
 })
 
 const html = computed(() => {
-  const raw = marked.parse(props.content || '', { async: false })
-  return DOMPurify.sanitize(raw)
+  const raw = markdown.parse(props.content || '', { async: false })
+  return DOMPurify.sanitize(raw, {
+    ADD_ATTR: ['class'],
+  })
 })
 </script>
 
@@ -48,7 +51,7 @@ const html = computed(() => {
 .markdown-preview :deep(li) {
   margin: 0.25rem 0;
 }
-.markdown-preview :deep(code) {
+.markdown-preview :deep(code:not(.hljs)) {
   font-family: 'IBM Plex Mono', monospace;
   font-size: 0.85em;
   background: #f1f5f9;
@@ -63,9 +66,13 @@ const html = computed(() => {
   overflow-x: auto;
   margin: 0 0 0.75rem;
 }
-.markdown-preview :deep(pre code) {
-  background: none;
+.markdown-preview :deep(pre code.hljs) {
+  display: block;
   padding: 0;
+  background: none;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.8125rem;
+  line-height: 1.5;
 }
 .markdown-preview :deep(blockquote) {
   border-left: 3px solid #cbd5e1;
