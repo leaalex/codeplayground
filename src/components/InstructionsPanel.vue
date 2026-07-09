@@ -25,17 +25,20 @@ const props = defineProps({
     type: Boolean,
     default: true,
   },
+  linking: {
+    type: Boolean,
+    default: false,
+  },
 })
 
-const emit = defineEmits(['link', 'updated'])
+const emit = defineEmits(['link', 'updated', 'create'])
 
 const draft = ref('')
 const savedContent = ref('')
 const saveStatus = ref('saved')
 
-const canEdit = computed(
-  () => props.isAdmin && !props.readOnly && Boolean(props.instructions?.id)
-)
+const canManage = computed(() => props.isAdmin && !props.readOnly)
+const canEdit = computed(() => canManage.value && Boolean(props.instructions?.id))
 const content = computed(() => props.instructions?.content || '')
 const title = computed(() => props.instructions?.name || 'Assignment')
 const isDirty = computed(() => draft.value !== savedContent.value)
@@ -132,18 +135,30 @@ async function saveInstructions() {
         </button>
       </div>
     </div>
-    <div v-if="isAdmin && !readOnly && markdownFiles.length" class="shrink-0 border-b border-slate-200 px-3 py-2">
-      <label class="mb-0.5 block text-[10px] font-medium text-slate-500">Link instruction</label>
-      <select
-        :value="instructionsFileId ?? ''"
-        class="w-full rounded border border-slate-300 px-2 py-1 text-xs"
-        @change="onLinkChange"
-      >
-        <option value="">None</option>
-        <option v-for="md in markdownFiles" :key="md.id" :value="md.id">
-          {{ md.name }}
-        </option>
-      </select>
+    <div v-if="canManage" class="shrink-0 space-y-1.5 border-b border-slate-200 px-3 py-2">
+      <label class="block text-[10px] font-medium text-slate-500">Link instruction</label>
+      <div class="flex items-center gap-1.5">
+        <select
+          :value="instructionsFileId ?? ''"
+          class="min-w-0 flex-1 rounded border border-slate-300 px-2 py-1 text-xs disabled:opacity-50"
+          :disabled="linking"
+          @change="onLinkChange"
+        >
+          <option value="">None</option>
+          <option v-for="md in markdownFiles" :key="md.id" :value="md.id">
+            {{ md.name }}
+          </option>
+        </select>
+        <button
+          type="button"
+          class="shrink-0 rounded border border-slate-300 bg-white px-2 py-1 text-[10px] font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+          :disabled="linking"
+          title="Create a new markdown instruction and link it"
+          @click="emit('create')"
+        >
+          New
+        </button>
+      </div>
     </div>
     <div class="min-h-0 flex-1 overflow-hidden">
       <TipTapEditor
@@ -153,7 +168,10 @@ async function saveInstructions() {
       />
       <div v-else class="h-full overflow-auto">
         <MarkdownPreview v-if="content" :content="content" />
-        <p v-else class="px-4 py-3 text-xs text-slate-400">No assignment linked.</p>
+        <p v-else class="px-4 py-3 text-xs text-slate-400">
+          No assignment linked.
+          <template v-if="canManage"> Choose an existing note or create a new one.</template>
+        </p>
       </div>
     </div>
   </div>

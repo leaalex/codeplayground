@@ -20,6 +20,7 @@ import {
   preserveExtension,
   isCodeFile,
   isMarkdownFile,
+  ensureExtension,
 } from '../utils/language'
 
 const WATCH_POLL_MS = 2000
@@ -35,6 +36,9 @@ const verified = ref(false)
 const autosaveEnabled = ref(true)
 const code = ref('// Loading...\n')
 const instructions = ref(null)
+const instructionsFileId = ref(null)
+const markdownFiles = ref([])
+const instructionsBusy = ref(false)
 const showInstructionsPanel = ref(false)
 const logs = ref([])
 const running = ref(false)
@@ -128,9 +132,43 @@ async function pollWatchFile() {
     }
     if (file.instructions) {
       instructions.value = file.instructions
+      instructionsFileId.value = file.instructions_file_id ?? file.instructions.id ?? null
+    } else {
+      instructions.value = null
+      instructionsFileId.value = file.instructions_file_id ?? null
     }
   } catch (e) {
     console.error(e)
+  }
+}
+
+async function loadMarkdownFiles() {
+  if (!isAdmin.value) {
+    markdownFiles.value = []
+    return
+  }
+  try {
+    const files = await api('/files')
+    markdownFiles.value = (files || [])
+      .filter((f) => isMarkdownFile(f.name))
+      .map((f) => ({ id: f.id, name: f.name }))
+      .sort((a, b) => (a.name || '').localeCompare(b.name || ''))
+  } catch (e) {
+    console.error(e)
+    markdownFiles.value = []
+  }
+}
+
+function applyInstructionsFromFile(file) {
+  instructionsFileId.value = file.instructions_file_id ?? file.instructions?.id ?? null
+  if (file.instructions) {
+    instructions.value = {
+      id: file.instructions.id,
+      name: file.instructions.name,
+      content: file.instructions.content || '',
+    }
+  } else {
+    instructions.value = null
   }
 }
 
@@ -150,9 +188,14 @@ async function loadFile() {
     code.value = file.content || defaultTemplate(detectLanguage(file.name))
     fileUserId.value = file.user_id
     fileUser.value = file.user
-    instructions.value = file.instructions || null
+    applyInstructionsFromFile(file)
     lastRemoteUpdatedAt.value = file.updated_at
     syncBaseline(code.value)
+    if (isAdmin.value && isCodeFile(file.name) && !isWatchMode.value) {
+      await loadMarkdownFiles()
+    } else {
+      markdownFiles.value = []
+    }
     if (instructions.value && !showInstructionsPanel.value) {
       showInstructionsPanel.value = true
     }
@@ -265,6 +308,73 @@ function onInstructionsUpdated(updated) {
     ...instructions.value,
     name: updated.name ?? instructions.value.name,
     content: updated.content ?? instructions.value.content,
+  }
+}
+
+async function onInstructionsLink(payload) {
+  if (!isAdmin.value || isWatchMode.value || !route.params.id || !isCodeEditor.value) return
+  if (instructionsBusy.value) return
+  instructionsBusy.value = true
+  try {
+    const body = payload?.clear
+      ? { clear_instructions: true }
+      : { instructions_file_id: Number(payload.id) }
+    const updated = await api(`/files/${route.params.id}`, {
+      method: 'PUT',
+      body: JSON.stringify(body),
+    })
+    applyInstructionsFromFile(updated)
+    if (!payload?.clear && !updated.instructions && payload?.id) {
+      const md = await api(`/files/${payload.id}`)
+      instructions.value = {
+        id: md.id,
+        name: md.name,
+        content: md.content || '',
+      }
+      instructionsFileId.value = md.id
+    }
+  } catch (e) {
+    alert(e.message)
+  } finally {
+    instructionsBusy.value = false
+  }
+}
+
+async function onInstructionsCreate() {
+  if (!isAdmin.value || isWatchMode.value || !route.params.id || !isCodeEditor.value) return
+  if (instructionsBusy.value) return
+  const raw = window.prompt('New instruction file name', 'assignment.md')
+  if (raw == null) return
+  const name = ensureExtension(raw.trim() || 'assignment.md', 'markdown')
+  instructionsBusy.value = true
+  try {
+    const md = await api('/files', {
+      method: 'POST',
+      body: JSON.stringify({
+        name,
+        path: '',
+        content: defaultTemplate('markdown'),
+      }),
+    })
+    const updated = await api(`/files/${route.params.id}`, {
+      method: 'PUT',
+      body: JSON.stringify({ instructions_file_id: md.id }),
+    })
+    await loadMarkdownFiles()
+    applyInstructionsFromFile(updated)
+    if (!updated.instructions) {
+      instructions.value = {
+        id: md.id,
+        name: md.name,
+        content: md.content || '',
+      }
+      instructionsFileId.value = md.id
+    }
+    showInstructionsPanel.value = true
+  } catch (e) {
+    alert(e.message)
+  } finally {
+    instructionsBusy.value = false
   }
 }
 
@@ -426,7 +536,12 @@ onBeforeUnmount(() => {
             :instructions="instructions"
             :is-admin="isAdmin"
             :read-only="!isAdmin || isWatchMode"
+            :markdown-files="markdownFiles"
+            :instructions-file-id="instructionsFileId"
+            :linking="instructionsBusy"
             @updated="onInstructionsUpdated"
+            @link="onInstructionsLink"
+            @create="onInstructionsCreate"
           />
         </Pane>
         <Pane :min-size="40">
