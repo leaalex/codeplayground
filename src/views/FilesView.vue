@@ -289,6 +289,7 @@ async function transferOwner(file, userId) {
       body: JSON.stringify({ user_id: userId }),
     })
     applyFileUpdate(updated)
+    await load({ silent: true })
   } catch (e) {
     alert(e.message)
   }
@@ -308,6 +309,7 @@ async function batchTransfer() {
     for (const updated of results) {
       applyFileUpdate(updated)
     }
+    await load({ silent: true })
   } catch (e) {
     alert(e.message)
   }

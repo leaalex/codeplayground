@@ -162,6 +162,12 @@ func (h *FilesHandler) Update(c *gin.Context) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "user not found"})
 			return
 		}
+		if filekind.IsMarkdown(file.Name) && owner.Role != "admin" {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error": "markdown instructions cannot be owned by students; transfer the linked code file (.go/.py) instead",
+			})
+			return
+		}
 		file.UserID = *req.UserID
 	}
 	if req.AutosaveEnabled != nil && role == "admin" {

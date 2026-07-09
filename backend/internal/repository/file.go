@@ -55,6 +55,10 @@ func (r *FileRepository) Get(id uint, userID uint) (*models.File, error) {
 }
 
 func (r *FileRepository) Update(file *models.File) error {
+	// Clear associations so Save does not overwrite FKs from preloaded relations
+	// (e.g. changing UserID while User is still the previous owner).
+	file.User = nil
+	file.InstructionsFile = nil
 	return r.db.Save(file).Error
 }
 
