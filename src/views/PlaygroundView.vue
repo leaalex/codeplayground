@@ -258,6 +258,16 @@ function toggleInstructionsPanel() {
   showInstructionsPanel.value = !showInstructionsPanel.value
 }
 
+function onInstructionsUpdated(updated) {
+  if (!instructions.value || !updated?.id) return
+  if (instructions.value.id !== updated.id) return
+  instructions.value = {
+    ...instructions.value,
+    name: updated.name ?? instructions.value.name,
+    content: updated.content ?? instructions.value.content,
+  }
+}
+
 const breadcrumbLabel = computed(() => {
   if (fileUserId.value == null) return 'Your files'
   const isOwn = user.value && fileUserId.value === user.value.id
@@ -411,11 +421,12 @@ onBeforeUnmount(() => {
         v-else-if="showInstructionsPanel && (instructions || isAdmin)"
         class="h-full"
       >
-        <Pane :min-size="15" :size="22" :max-size="40">
+        <Pane :min-size="15" :size="28" :max-size="45">
           <InstructionsPanel
             :instructions="instructions"
             :is-admin="isAdmin"
-            read-only
+            :read-only="!isAdmin || isWatchMode"
+            @updated="onInstructionsUpdated"
           />
         </Pane>
         <Pane :min-size="40">
