@@ -189,7 +189,7 @@ API:
 Одинаковая карточка для всех URL (включая `/playground/:id`):
 
 - Meta-теги в `index.html` (`og:*`, `twitter:*`)
-- Картинка: `public/og-image.png` (1200×630), публичный URL `https://xionic.ru/og-image.png`
+- Картинка: `public/og-image.jpg` (1200×630, ~200 KB), публичный URL `https://xionic.ru/og-image.jpg`
 - Title: **Code Playground**
 - Description: **Write code. Come alive.**
 
