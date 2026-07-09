@@ -16,8 +16,14 @@ export async function api(path, options = {}) {
     headers,
   })
   if (res.status === 401) {
-    useAuth().logout()
-    window.location.href = '/login'
+    const { setToken } = useAuth()
+    setToken(null)
+    const redirect = `${window.location.pathname}${window.location.search}${window.location.hash}`
+    const loginUrl =
+      redirect && redirect !== '/login'
+        ? `/login?redirect=${encodeURIComponent(redirect)}`
+        : '/login'
+    window.location.href = loginUrl
     throw new Error('Unauthorized')
   }
   if (!res.ok) {

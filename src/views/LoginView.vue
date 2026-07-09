@@ -1,10 +1,11 @@
 <script setup>
 import { ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useAuth } from '../composables/useAuth'
 import { api } from '../composables/useApi'
 import AppLogo from '../components/AppLogo.vue'
 
+const route = useRoute()
 const router = useRouter()
 const { setToken } = useAuth()
 
@@ -13,6 +14,14 @@ const fullname = ref('')
 const email = ref('')
 const password = ref('')
 const error = ref('')
+
+function redirectAfterAuth() {
+  const raw = route.query.redirect
+  if (typeof raw === 'string' && raw.startsWith('/') && !raw.startsWith('//') && raw !== '/login') {
+    return raw
+  }
+  return '/files'
+}
 
 async function submit() {
   error.value = ''
@@ -26,7 +35,7 @@ async function submit() {
       body: JSON.stringify(body),
     })
     setToken(data.accessToken, data)
-    router.push('/files')
+    router.push(redirectAfterAuth())
   } catch (e) {
     error.value = e.message
   }

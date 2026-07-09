@@ -18,12 +18,22 @@ const router = createRouter({
   ],
 })
 
+function safeRedirectPath(raw) {
+  if (typeof raw !== 'string' || !raw.startsWith('/') || raw.startsWith('//')) {
+    return '/files'
+  }
+  if (raw === '/login' || raw.startsWith('/login?')) {
+    return '/files'
+  }
+  return raw
+}
+
 router.beforeEach((to, _from, next) => {
   const { isAuthenticated, isAdmin } = useAuth()
   if (!to.meta.public && !isAuthenticated.value) {
-    next({ name: 'login' })
+    next({ name: 'login', query: { redirect: to.fullPath } })
   } else if (to.name === 'login' && isAuthenticated.value) {
-    next({ name: 'files' })
+    next(safeRedirectPath(to.query.redirect))
   } else if (to.meta.adminOnly && !isAdmin.value) {
     next({ name: 'files' })
   } else {
