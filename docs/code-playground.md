@@ -184,4 +184,15 @@ API:
 3. Backend: `cd backend && go run main.go` (нужен доступ к `/var/run/docker.sock`)
 4. Frontend: `npm run dev`
 
+## Open Graph (превью ссылок)
+
+Одинаковая карточка для всех URL (включая `/playground/:id`):
+
+- Meta-теги в `index.html` (`og:*`, `twitter:*`)
+- Картинка: `public/og-image.png` (1200×630), публичный URL `https://xionic.ru/og-image.png`
+- Title: **Code Playground**
+- Description: **Write code. Come alive.**
+
+После деплоя кэш Telegram/Facebook может держать старое превью — обновите через [Telegram Webpage Bot](https://t.me/webpagebot) или Facebook Sharing Debugger.
+
 Альтернатива: `docker compose up --build` — backend получает socket через compose.
